@@ -103,6 +103,7 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [isCameraStreaming, setIsCameraStreaming] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
 
   // Real Location States
   const [isLocating, setIsLocating] = useState(false);
@@ -137,6 +138,18 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
     };
   }, []);
 
+  // Ensure mounted video element always receives the active media stream
+  useEffect(() => {
+    if (step === 'CAMERA' && isCameraStreaming && videoRef.current && mediaStreamRef.current) {
+      if (videoRef.current.srcObject !== mediaStreamRef.current) {
+        videoRef.current.srcObject = mediaStreamRef.current;
+      }
+      videoRef.current.muted = true;
+      videoRef.current.playsInline = true;
+      videoRef.current.play().catch((err) => console.warn('Video play error in effect:', err));
+    }
+  }, [step, isCameraStreaming]);
+
   const stopCameraStream = () => {
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -148,27 +161,43 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
   // ==========================================================================
   // REAL CAMERA LIFECYCLE
   // ==========================================================================
-  const startCamera = async () => {
+  const startCamera = async (overrideFacing?: 'environment' | 'user') => {
     setCameraError(null);
     setCapturedPhoto(null);
     setStep('CAMERA');
+    stopCameraStream();
+
+    const targetFacing = overrideFacing || facingMode;
 
     if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.mediaDevices) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-          audio: false,
-        });
+        let stream: MediaStream | null = null;
+        try {
+          // Attempt target facingMode (rear on mobile or requested)
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: { ideal: targetFacing },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+            audio: false,
+          });
+        } catch (facingErr) {
+          console.warn('Ideal facingMode unavailable, falling back to basic video constraint:', facingErr);
+          // Fallback to basic webcam stream (essential for desktop/laptop webcams!)
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        }
 
         mediaStreamRef.current = stream;
         setIsCameraStreaming(true);
 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          videoRef.current.muted = true;
+          videoRef.current.playsInline = true;
           videoRef.current.play().catch((err) => console.warn('Video play error:', err));
         }
       } catch (err: any) {
@@ -181,6 +210,12 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
     } else {
       setCameraError('Native camera hardware module ready.');
     }
+  };
+
+  const toggleFacingMode = () => {
+    const nextMode = facingMode === 'environment' ? 'user' : 'environment';
+    setFacingMode(nextMode);
+    startCamera(nextMode);
   };
 
   const handleCaptureSnapshot = () => {
@@ -362,7 +397,7 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
         <View style={styles.heroBox}>
           <TouchableOpacity
             style={styles.plusCameraHeroButton}
-            onPress={startCamera}
+            onPress={() => startCamera()}
             activeOpacity={0.8}
           >
             <View style={styles.plusCameraCircle}>
@@ -441,15 +476,32 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
               {/* Live Webcam/Phone video stream */}
               {!capturedPhoto && isCameraStreaming && (
                 <video
-                  ref={videoRef as any}
+                  ref={(node) => {
+                    videoRef.current = node;
+                    if (node && mediaStreamRef.current) {
+                      if (node.srcObject !== mediaStreamRef.current) {
+                        node.srcObject = mediaStreamRef.current;
+                      }
+                      node.muted = true;
+                      node.playsInline = true;
+                      node.onloadedmetadata = () => {
+                        node.play().catch(() => {});
+                      };
+                      node.play().catch(() => {});
+                    }
+                  }}
                   autoPlay
                   playsInline
                   muted
                   style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
                     width: '100%',
                     height: '100%',
                     objectFit: 'cover',
                     borderRadius: 12,
+                    zIndex: 1,
                   }}
                 />
               )}
@@ -460,7 +512,7 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
           {capturedPhoto && (
             <Image
               source={{ uri: capturedPhoto }}
-              style={StyleSheet.absoluteFillObject}
+              style={[StyleSheet.absoluteFillObject, { zIndex: 5, borderRadius: 12 }]}
               resizeMode="cover"
             />
           )}
@@ -508,21 +560,44 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
         {/* Camera Controls */}
         <View style={styles.cameraFooter}>
           {!capturedPhoto ? (
-            <View style={styles.shutterRow}>
-              <TouchableOpacity
-                style={styles.shutterButton}
-                onPress={handleCaptureSnapshot}
-                activeOpacity={0.8}
-              >
-                <View style={styles.shutterInner} />
-              </TouchableOpacity>
-              <Text style={styles.shutterLabel}>Tap Shutter to Snap</Text>
+            <View style={styles.cameraFooterInner}>
+              <View style={styles.cameraControlsBar}>
+                {/* 1. Upload Photo from Device */}
+                <TouchableOpacity
+                  style={styles.camAuxButton}
+                  onPress={() => fileInputRef.current?.click()}
+                  activeOpacity={0.7}
+                >
+                  <FileTextIcon color="#FFFFFF" size={20} />
+                  <Text style={styles.camAuxLabel}>Upload</Text>
+                </TouchableOpacity>
+
+                {/* 2. Main Shutter Button */}
+                <TouchableOpacity
+                  style={styles.shutterButton}
+                  onPress={handleCaptureSnapshot}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.shutterInner} />
+                </TouchableOpacity>
+
+                {/* 3. Switch Camera (Rear / Front) */}
+                <TouchableOpacity
+                  style={styles.camAuxButton}
+                  onPress={toggleFacingMode}
+                  activeOpacity={0.7}
+                >
+                  <RefreshIcon color="#FFFFFF" size={20} />
+                  <Text style={styles.camAuxLabel}>{facingMode === 'environment' ? 'Front Cam' : 'Rear Cam'}</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.shutterLabel}>Tap Shutter to Snap • or Upload Photo</Text>
             </View>
           ) : (
             <View style={styles.cameraActionRow}>
               <TouchableOpacity
                 style={styles.retakeButton}
-                onPress={startCamera}
+                onPress={() => startCamera()}
                 activeOpacity={0.7}
               >
                 <RefreshIcon color="#FFFFFF" size={15} />
@@ -985,6 +1060,9 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderColor: '#38BDF8',
+    zIndex: 10,
+    // @ts-ignore
+    pointerEvents: 'none',
   },
   bracketTL: {
     top: 14,
@@ -1018,6 +1096,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     paddingHorizontal: 6,
     borderRadius: 4,
+    zIndex: 10,
+    // @ts-ignore
+    pointerEvents: 'none',
   },
   camWatermarkText: {
     color: '#94A3B8',
@@ -1031,6 +1112,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#0F172A',
+  },
+  cameraFooterInner: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  cameraControlsBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    width: '100%',
+    maxWidth: 320,
+  },
+  camAuxButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+  },
+  camAuxLabel: {
+    color: '#CBD5E1',
+    fontSize: 9,
+    fontWeight: '700',
+    marginTop: 3,
   },
   shutterRow: {
     alignItems: 'center',
@@ -1054,7 +1162,7 @@ const styles = StyleSheet.create({
   shutterLabel: {
     color: '#94A3B8',
     fontSize: 11,
-    marginTop: 8,
+    marginTop: 10,
     fontWeight: '600',
   },
   cameraActionRow: {
