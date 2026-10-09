@@ -298,6 +298,18 @@ export const SirenIcon: React.FC<IconProps> = ({ color = '#EF4444', size = 16, s
   return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
 };
 
+// 21. Chevron Down / Dropdown Icon
+export const ChevronDownIcon: React.FC<IconProps> = ({ color = '#64748B', size = 18, strokeWidth = 2.5 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <polyline points="6 9 12 15 18 9" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
 const styles = StyleSheet.create({
   fallbackBox: {
     borderWidth: 1.5,

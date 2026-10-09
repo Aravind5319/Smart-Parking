@@ -49,6 +49,7 @@ export default function App() {
       <Header
         title={getHeaderTitle()}
         subtitle="Puducherry Traffic Police • ParkPuduvai"
+        showKarma={activeTab === 'tickets'}
         karmaPoints={karmaPoints}
         onPressKarma={() =>
           Alert.alert(

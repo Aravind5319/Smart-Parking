@@ -1,5 +1,8 @@
 // ============================================================================
-// MEMBER 1 WORKSPACE: TICKET TRACKING & CIVIC KARMA STATUS
+// MEMBER 1 WORKSPACE: TICKET TRACKING & CIVIC ENFORCEMENT TIMELINE
+// - Vertical Complaints List (one after another)
+// - Expandable Accordion Dropdown revealing the 4-step progress timeline
+// - Zero Emojis (Pure SVG Icons)
 // ============================================================================
 
 import React, { useState } from 'react';
@@ -10,26 +13,38 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  Platform,
 } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { ViolationReport } from '../../types/navigation';
+import { ChevronDownIcon } from '../../components/common/Icons';
 
 interface TrackComplaintsScreenProps {
   tickets: ViolationReport[];
-  karmaPoints: number;
+  karmaPoints?: number;
   onNavigateToReport: () => void;
 }
 
 export const TrackComplaintsScreen: React.FC<TrackComplaintsScreenProps> = ({
   tickets,
-  karmaPoints,
   onNavigateToReport,
 }) => {
-  const [selectedTicketId, setSelectedTicketId] = useState<string>(
-    tickets.length > 0 ? tickets[0].id : ''
-  );
+  // Store which ticket IDs are expanded in the dropdown accordion
+  // Default the first ticket (most recent) to expanded so progress is immediately visible
+  const [expandedTickets, setExpandedTickets] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    if (tickets.length > 0) {
+      initial[tickets[0].id] = true;
+    }
+    return initial;
+  });
 
-  const activeTicket = tickets.find((t) => t.id === selectedTicketId) || tickets[0];
+  const toggleTicket = (ticketId: string) => {
+    setExpandedTickets((prev) => ({
+      ...prev,
+      [ticketId]: !prev[ticketId],
+    }));
+  };
 
   const getStatusBadge = (status: ViolationReport['status']) => {
     switch (status) {
@@ -48,198 +63,196 @@ export const TrackComplaintsScreen: React.FC<TrackComplaintsScreenProps> = ({
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-
-      {/* Civic Karma Summary Card */}
-      <View style={styles.karmaCard}>
-        <View style={styles.karmaRow}>
-          <View>
-            <Text style={styles.karmaTitle}>Civic Karma Balance</Text>
-            <Text style={styles.karmaLevel}>Level 2: Traffic Sentinel</Text>
-          </View>
-          <View style={styles.karmaScoreBox}>
-            <Text style={styles.karmaScore}>{karmaPoints}</Text>
-            <Text style={styles.karmaPts}>POINTS</Text>
-          </View>
-        </View>
-        <Text style={styles.karmaDescription}>
-          Every verified report adds +50 Karma points. High karma unlocks priority review in police triage.
-        </Text>
-      </View>
-
-      {/* Ticket Selector Horizontal Pills */}
-      <Text style={styles.sectionHeader}>Your Submitted Reports ({tickets.length})</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.ticketScroll}>
-        {tickets.map((t) => {
-          const isSelected = t.id === activeTicket?.id;
-          const badge = getStatusBadge(t.status);
-          return (
-            <TouchableOpacity
-              key={t.id}
-              style={[styles.ticketPill, isSelected && styles.ticketPillActive]}
-              onPress={() => setSelectedTicketId(t.id)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.ticketRef, isSelected && styles.ticketRefActive]}>
-                {t.referenceNo}
-              </Text>
-              <View style={[styles.pillBadge, { backgroundColor: badge.bg }]}>
-                <Text style={[styles.pillBadgeText, { color: badge.text }]}>{badge.label}</Text>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      {activeTicket && (
-        <View style={styles.detailCard}>
-          {/* Header */}
-          <View style={styles.detailHeader}>
-            <View>
-              <Text style={styles.detailRefLabel}>Specific Ticket</Text>
-              <Text style={styles.detailRefVal}>{activeTicket.referenceNo}</Text>
-            </View>
-            <View>
-              <Text style={styles.detailRefLabel}>Current Status</Text>
-              <View style={[styles.statusTag, { backgroundColor: getStatusBadge(activeTicket.status).bg }]}>
-                <Text style={[styles.statusTagText, { color: getStatusBadge(activeTicket.status).text }]}>
-                  {getStatusBadge(activeTicket.status).label}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Vehicle & Location summary */}
-          <View style={styles.summaryBox}>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Vehicle Plate</Text>
-              <Text style={styles.summaryVal}>{activeTicket.vehicleNumber}</Text>
-            </View>
-            <View style={styles.summaryItem}>
-              <Text style={styles.summaryLabel}>Offence Type</Text>
-              <Text style={styles.summaryVal}>{activeTicket.violationType.replace(/_/g, ' ')}</Text>
-            </View>
-            <View style={styles.summaryItemFull}>
-              <Text style={styles.summaryLabel}>Landmark / Street</Text>
-              <Text style={styles.summaryVal}>{activeTicket.location.landmark}</Text>
-            </View>
-            {activeTicket.otherDescription ? (
-              <View style={styles.summaryItemFull}>
-                <Text style={styles.summaryLabel}>Description Note</Text>
-                <Text style={styles.summaryVal}>{activeTicket.otherDescription}</Text>
-              </View>
-            ) : null}
-          </View>
-
-          {/* Captured Evidence Photo if available */}
-          {activeTicket.photoUri && (
-            <View style={styles.evidencePhotoCard}>
-              <Text style={styles.evidencePhotoLabel}>TAMPER-PROOF EVIDENCE PHOTO</Text>
-              <Image
-                source={{ uri: activeTicket.photoUri }}
-                style={styles.evidencePhotoImage}
-                resizeMode="cover"
-              />
-            </View>
-          )}
-
-          {/* 4-Step Vertical Progress Timeline */}
-          <Text style={styles.timelineTitle}>Enforcement Progress Timeline</Text>
-          <View style={styles.timelineContainer}>
-            {/* Step 1 */}
-            <View style={styles.stepRow}>
-              <View style={styles.stepIndicatorCol}>
-                <View style={[styles.stepDot, styles.stepDotCompleted]} />
-                <View style={[styles.stepLine, styles.stepLineCompleted]} />
-              </View>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>Violation Submitted</Text>
-                <Text style={styles.stepMeta}>{activeTicket.timestamp} • Uploaded via live camera</Text>
-              </View>
-            </View>
-
-            {/* Step 2 */}
-            <View style={styles.stepRow}>
-              <View style={styles.stepIndicatorCol}>
-                <View
-                  style={[
-                    styles.stepDot,
-                    activeTicket.status !== 'SUBMITTED' ? styles.stepDotActive : styles.stepDotPending,
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.stepLine,
-                    activeTicket.status === 'CHALLAN_ISSUED' || activeTicket.status === 'ENFORCEMENT_COMPLETE'
-                      ? styles.stepLineCompleted
-                      : styles.stepLinePending,
-                  ]}
-                />
-              </View>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>Under Police Review</Text>
-                <Text style={styles.stepMeta}>
-                  {activeTicket.policeNote || 'Assigned to Traffic Police Control Room for verification'}
-                </Text>
-              </View>
-            </View>
-
-            {/* Step 3 */}
-            <View style={styles.stepRow}>
-              <View style={styles.stepIndicatorCol}>
-                <View
-                  style={[
-                    styles.stepDot,
-                    activeTicket.status === 'CHALLAN_ISSUED' || activeTicket.status === 'ENFORCEMENT_COMPLETE'
-                      ? styles.stepDotCompleted
-                      : styles.stepDotPending,
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.stepLine,
-                    activeTicket.status === 'ENFORCEMENT_COMPLETE'
-                      ? styles.stepLineCompleted
-                      : styles.stepLinePending,
-                  ]}
-                />
-              </View>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>e-Challan Issuance</Text>
-                <Text style={styles.stepMeta}>
-                  {activeTicket.challanNumber
-                    ? `Challan #${activeTicket.challanNumber} (MVA Sec 122)`
-                    : 'Pending police officer confirmation'}
-                </Text>
-              </View>
-            </View>
-
-            {/* Step 4 */}
-            <View style={styles.stepRow}>
-              <View style={styles.stepIndicatorCol}>
-                <View
-                  style={[
-                    styles.stepDot,
-                    activeTicket.status === 'ENFORCEMENT_COMPLETE' ? styles.stepDotCompleted : styles.stepDotPending,
-                  ]}
-                />
-              </View>
-              <View style={styles.stepContent}>
-                <Text style={styles.stepTitle}>Enforcement Complete</Text>
-                <Text style={styles.stepMeta}>
-                  {activeTicket.status === 'ENFORCEMENT_COMPLETE'
-                    ? 'Obstruction cleared by towing crane'
-                    : 'Pending vehicle removal / fine payment'}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* New Report Call to Action */}
-      <TouchableOpacity style={styles.newReportBtn} onPress={onNavigateToReport} activeOpacity={0.8}>
+      {/* Quick Access Action Button at the top */}
+      <TouchableOpacity style={styles.newReportBtnTop} onPress={onNavigateToReport} activeOpacity={0.8}>
         <Text style={styles.newReportBtnText}>+ Report Another Violation</Text>
       </TouchableOpacity>
+
+      <Text style={styles.sectionHeader}>Your Submitted Complaints ({tickets.length})</Text>
+
+      {/* Vertical list of complaints, one after another */}
+      {tickets.map((ticket) => {
+        const isExpanded = !!expandedTickets[ticket.id];
+        const badge = getStatusBadge(ticket.status);
+
+        return (
+          <View key={ticket.id} style={styles.complaintCard}>
+            {/* Clickable Card Header / Accordion Trigger */}
+            <TouchableOpacity
+              style={styles.cardHeaderTrigger}
+              onPress={() => toggleTicket(ticket.id)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.cardHeaderTopRow}>
+                <View>
+                  <Text style={styles.ticketIdLabel}>SPECIFIC TICKET</Text>
+                  <Text style={styles.ticketIdValue}>{ticket.referenceNo}</Text>
+                </View>
+
+                <View style={styles.statusAndDropdownCol}>
+                  <View style={styles.statusCol}>
+                    <Text style={styles.ticketStatusHeaderLabel}>CURRENT STATUS</Text>
+                    <View style={[styles.statusTag, { backgroundColor: badge.bg }]}>
+                      <Text style={[styles.statusTagText, { color: badge.text }]}>
+                        {badge.label}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={[styles.chevronBox, isExpanded && styles.chevronRotated]}>
+                    <ChevronDownIcon color="#64748B" size={18} strokeWidth={2.5} />
+                  </View>
+                </View>
+              </View>
+
+              {/* Vehicle & Location summary preview */}
+              <View style={styles.summaryBox}>
+                <View style={styles.summaryItem}>
+                  <Text style={styles.summaryLabel}>VEHICLE PLATE</Text>
+                  <Text style={styles.summaryValBold}>{ticket.vehicleNumber}</Text>
+                </View>
+                <View style={styles.summaryItem}>
+                  <Text style={styles.summaryLabel}>OFFENCE TYPE</Text>
+                  <Text style={styles.summaryVal}>{ticket.violationType.replace(/_/g, ' ')}</Text>
+                </View>
+                <View style={styles.summaryItemFull}>
+                  <Text style={styles.summaryLabel}>LANDMARK / STREET</Text>
+                  <Text style={styles.summaryVal}>{ticket.location.landmark}</Text>
+                </View>
+              </View>
+
+              {/* Expand/Collapse footer hint bar */}
+              <View style={styles.expandHintBar}>
+                <Text style={styles.expandHintText}>
+                  {isExpanded ? 'Tap to hide timeline progress' : 'Tap to view timeline progress'}
+                </Text>
+                <View style={[styles.miniChevron, isExpanded && styles.chevronRotated]}>
+                  <ChevronDownIcon color={Colors.policeNavy} size={14} strokeWidth={2.5} />
+                </View>
+              </View>
+            </TouchableOpacity>
+
+            {/* Dropdown Section: Complaint Progress Timeline (Second Image) */}
+            {isExpanded && (
+              <View style={styles.dropdownContent}>
+                <View style={styles.dropdownDivider} />
+
+                {/* Evidence Photo if present */}
+                {ticket.photoUri && (
+                  <View style={styles.evidencePhotoCard}>
+                    <Text style={styles.evidencePhotoLabel}>TAMPER-PROOF EVIDENCE PHOTO</Text>
+                    <Image
+                      source={{ uri: ticket.photoUri }}
+                      style={styles.evidencePhotoImage}
+                      resizeMode="cover"
+                    />
+                  </View>
+                )}
+
+                {/* Optional Description */}
+                {ticket.otherDescription ? (
+                  <View style={styles.descriptionBox}>
+                    <Text style={styles.summaryLabel}>CITIZEN NOTE</Text>
+                    <Text style={styles.descriptionVal}>{ticket.otherDescription}</Text>
+                  </View>
+                ) : null}
+
+                {/* 4-Step Vertical Progress Timeline (from second image) */}
+                <Text style={styles.timelineTitle}>Enforcement Progress Timeline</Text>
+                <View style={styles.timelineContainer}>
+                  {/* Step 1: Violation Submitted */}
+                  <View style={styles.stepRow}>
+                    <View style={styles.stepIndicatorCol}>
+                      <View style={[styles.stepDot, styles.stepDotCompleted]} />
+                      <View style={[styles.stepLine, styles.stepLineCompleted]} />
+                    </View>
+                    <View style={styles.stepContent}>
+                      <Text style={styles.stepTitle}>Violation Submitted</Text>
+                      <Text style={styles.stepMeta}>{ticket.timestamp} • Uploaded via live camera</Text>
+                    </View>
+                  </View>
+
+                  {/* Step 2: Under Police Review */}
+                  <View style={styles.stepRow}>
+                    <View style={styles.stepIndicatorCol}>
+                      <View
+                        style={[
+                          styles.stepDot,
+                          ticket.status !== 'SUBMITTED' ? styles.stepDotActive : styles.stepDotPending,
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.stepLine,
+                          ticket.status === 'CHALLAN_ISSUED' || ticket.status === 'ENFORCEMENT_COMPLETE'
+                            ? styles.stepLineCompleted
+                            : styles.stepLinePending,
+                        ]}
+                      />
+                    </View>
+                    <View style={styles.stepContent}>
+                      <Text style={styles.stepTitle}>Under Police Review</Text>
+                      <Text style={styles.stepMeta}>
+                        {ticket.policeNote || 'Assigned to Traffic Police Control Room for verification.'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Step 3: e-Challan Issuance */}
+                  <View style={styles.stepRow}>
+                    <View style={styles.stepIndicatorCol}>
+                      <View
+                        style={[
+                          styles.stepDot,
+                          ticket.status === 'CHALLAN_ISSUED' || ticket.status === 'ENFORCEMENT_COMPLETE'
+                            ? styles.stepDotCompleted
+                            : styles.stepDotPending,
+                        ]}
+                      />
+                      <View
+                        style={[
+                          styles.stepLine,
+                          ticket.status === 'ENFORCEMENT_COMPLETE'
+                            ? styles.stepLineCompleted
+                            : styles.stepLinePending,
+                        ]}
+                      />
+                    </View>
+                    <View style={styles.stepContent}>
+                      <Text style={styles.stepTitle}>e-Challan Issuance</Text>
+                      <Text style={styles.stepMeta}>
+                        {ticket.challanNumber
+                          ? `Challan #${ticket.challanNumber} (MVA Sec 122)`
+                          : 'Pending police officer confirmation'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Step 4: Enforcement Complete */}
+                  <View style={styles.stepRow}>
+                    <View style={styles.stepIndicatorCol}>
+                      <View
+                        style={[
+                          styles.stepDot,
+                          ticket.status === 'ENFORCEMENT_COMPLETE' ? styles.stepDotCompleted : styles.stepDotPending,
+                        ]}
+                      />
+                    </View>
+                    <View style={styles.stepContent}>
+                      <Text style={styles.stepTitle}>Enforcement Complete</Text>
+                      <Text style={styles.stepMeta}>
+                        {ticket.status === 'ENFORCEMENT_COMPLETE'
+                          ? 'Obstruction cleared by towing crane'
+                          : 'Pending vehicle removal / fine payment'}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
+        );
+      })}
     </ScrollView>
   );
 };
@@ -253,174 +266,117 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 110,
   },
-  teamNotice: {
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    marginBottom: 16,
-    alignItems: 'center',
-  },
-  teamNoticeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#1D4ED8',
-    letterSpacing: 0.5,
-  },
-  karmaCard: {
-    backgroundColor: Colors.cardBackground,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    marginBottom: 18,
-  },
-  karmaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  karmaTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  karmaLevel: {
-    fontSize: 12,
-    color: Colors.policeNavy,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  karmaScoreBox: {
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
-  karmaScore: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#B45309',
-  },
-  karmaPts: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#B45309',
-  },
-  karmaDescription: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-    marginTop: 10,
-    lineHeight: 16,
-  },
   sectionHeader: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.textSecondary,
-    marginBottom: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  ticketScroll: {
-    marginBottom: 16,
-  },
-  ticketPill: {
-    backgroundColor: Colors.cardBackground,
-    borderWidth: 1,
-    borderColor: Colors.cardBorder,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginRight: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  ticketPillActive: {
-    borderColor: Colors.policeNavy,
-    backgroundColor: '#EFF6FF',
-  },
-  ticketRef: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.textSecondary,
-    marginRight: 8,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
-  ticketRefActive: {
-    color: Colors.policeNavy,
-  },
-  pillBadge: {
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-    borderRadius: 4,
-  },
-  pillBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  detailCard: {
+  complaintCard: {
     backgroundColor: Colors.cardBackground,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: Colors.cardBorder,
-    marginBottom: 20,
+    marginBottom: 16,
+    overflow: 'hidden',
+    ...Platform.select({
+      web: {
+        // @ts-ignore
+        boxShadow: '0px 2px 8px rgba(15, 23, 42, 0.04)',
+      },
+      default: {
+        shadowColor: '#0F172A',
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 2,
+      },
+    }),
   },
-  detailHeader: {
+  cardHeaderTrigger: {
+    padding: 16,
+  },
+  cardHeaderTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.cardBorder,
+    alignItems: 'flex-start',
   },
-  detailRefLabel: {
-    fontSize: 10,
+  ticketIdLabel: {
+    fontSize: 9,
     color: Colors.textMuted,
     textTransform: 'uppercase',
-    fontWeight: '600',
+    fontWeight: '800',
+    letterSpacing: 0.6,
   },
-  detailRefVal: {
-    fontSize: 16,
+  ticketIdValue: {
+    fontSize: 17,
     fontWeight: '800',
     color: Colors.textPrimary,
     marginTop: 2,
   },
+  statusAndDropdownCol: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statusCol: {
+    alignItems: 'flex-end',
+  },
+  ticketStatusHeaderLabel: {
+    fontSize: 9,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    marginBottom: 2,
+  },
   statusTag: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
     borderRadius: 6,
-    marginTop: 2,
   },
   statusTagText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  chevronBox: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  chevronRotated: {
+    transform: [{ rotate: '180deg' }],
   },
   summaryBox: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     backgroundColor: '#F8FAFC',
-    borderRadius: 8,
+    borderRadius: 10,
     padding: 12,
-    marginVertical: 14,
+    marginTop: 12,
     gap: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   summaryItem: {
-    width: '45%',
+    width: '46%',
   },
   summaryItemFull: {
     width: '100%',
-    marginTop: 4,
+    marginTop: 2,
   },
   summaryLabel: {
-    fontSize: 10,
+    fontSize: 9,
     color: Colors.textMuted,
     textTransform: 'uppercase',
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.4,
   },
   summaryVal: {
     fontSize: 12,
@@ -428,11 +384,60 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginTop: 2,
   },
-  timelineTitle: {
+  summaryValBold: {
     fontSize: 13,
+    fontWeight: '800',
+    color: Colors.policeNavy,
+    marginTop: 2,
+    letterSpacing: 0.3,
+  },
+  expandHintBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  expandHintText: {
+    fontSize: 11,
     fontWeight: '700',
+    color: Colors.policeNavy,
+  },
+  miniChevron: {
+    marginLeft: 4,
+  },
+  dropdownContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  dropdownDivider: {
+    height: 1,
+    backgroundColor: Colors.cardBorder,
+    marginBottom: 14,
+  },
+  descriptionBox: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  descriptionVal: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  timelineTitle: {
+    fontSize: 12,
+    fontWeight: '800',
     color: Colors.textPrimary,
     marginBottom: 14,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   timelineContainer: {
     paddingLeft: 6,
@@ -506,17 +511,31 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: '#1E293B',
   },
-  newReportBtn: {
-    backgroundColor: '#F1F5F9',
+  newReportBtnTop: {
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: '#CBD5E1',
     paddingVertical: 12,
-    borderRadius: 10,
+    borderRadius: 12,
     alignItems: 'center',
+    marginBottom: 16,
+    ...Platform.select({
+      web: {
+        // @ts-ignore
+        boxShadow: '0px 1px 3px rgba(15, 23, 42, 0.04)',
+      },
+      default: {
+        shadowColor: '#0F172A',
+        shadowOpacity: 0.04,
+        shadowRadius: 3,
+        elevation: 1,
+      },
+    }),
   },
   newReportBtnText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: Colors.textPrimary,
+    fontWeight: '800',
+    color: Colors.policeNavy,
+    letterSpacing: 0.3,
   },
 });

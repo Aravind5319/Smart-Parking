@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { PoliceShieldIcon, TrophyIcon } from './Icons';
 
@@ -7,6 +7,7 @@ interface HeaderProps {
   title: string;
   subtitle?: string;
   karmaPoints?: number;
+  showKarma?: boolean;
   onPressKarma?: () => void;
 }
 
@@ -14,6 +15,7 @@ export const Header: React.FC<HeaderProps> = ({
   title,
   subtitle = 'Puducherry Traffic Police',
   karmaPoints = 150,
+  showKarma = false,
   onPressKarma,
 }) => {
   return (
@@ -28,19 +30,21 @@ export const Header: React.FC<HeaderProps> = ({
         </View>
       </View>
 
-      <TouchableOpacity
-        style={styles.karmaChip}
-        onPress={onPressKarma}
-        activeOpacity={0.7}
-      >
-        <View style={{ marginRight: 6 }}>
-          <TrophyIcon color="#F59E0B" size={16} />
-        </View>
-        <View>
-          <Text style={styles.karmaLabel}>Karma</Text>
-          <Text style={styles.karmaValue}>{karmaPoints} pts</Text>
-        </View>
-      </TouchableOpacity>
+      {showKarma && typeof karmaPoints === 'number' && (
+        <TouchableOpacity
+          style={styles.karmaChip}
+          onPress={onPressKarma}
+          activeOpacity={0.7}
+        >
+          <View style={{ marginRight: 6 }}>
+            <TrophyIcon color="#F59E0B" size={16} />
+          </View>
+          <View>
+            <Text style={styles.karmaLabel}>Karma</Text>
+            <Text style={styles.karmaValue}>{karmaPoints} pts</Text>
+          </View>
+        </TouchableOpacity>
+      )}
     </View>
   );
 };
@@ -48,8 +52,13 @@ export const Header: React.FC<HeaderProps> = ({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: Colors.policeNavyDark,
-    paddingTop: 48,
-    paddingBottom: 16,
+    paddingTop: Platform.select({
+      web: 14,
+      ios: 44,
+      android: StatusBar.currentHeight ? StatusBar.currentHeight + 6 : 16,
+      default: 14,
+    }),
+    paddingBottom: 14,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
