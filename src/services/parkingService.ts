@@ -1,12 +1,14 @@
 // ============================================================================
 // PARKPUDUVAI SMART PARKING & NO-PARKING ZONE SERVICE
-// Puducherry Police Traffic Command & Enforcement Engine
+// Puducherry Police Traffic Command, IoT Sensor Engine & Trip Guidance
 // ============================================================================
 
 export interface LocationCoordinates {
   latitude: number;
   longitude: number;
 }
+
+export type ParkingCategory = 'FREE_CIVIC' | 'GOVT_MUNICIPAL' | 'RESTRICTED';
 
 export interface ParkingZone {
   id: string;
@@ -15,6 +17,7 @@ export interface ParkingZone {
   area: string;
   coordinates: LocationCoordinates;
   type: 'PARKING_GREEN' | 'NO_PARKING_RED';
+  category: ParkingCategory;
   totalSlots?: number;
   occupiedSlots?: number;
   isFull?: boolean;
@@ -23,9 +26,25 @@ export interface ParkingZone {
   distanceKm?: number;
   vehicleTypes?: string[];
   enforcementNotes?: string;
+  // Hardware & IoT Sensor Status
+  sensorType?: string;
+  sensorStatus?: string;
+  lastHardwarePingSec?: number;
+  // Traffic flow status to reach this zone
+  trafficLevel?: 'SMOOTH' | 'MODERATE' | 'CONGESTED';
+  trafficDelayMin?: number;
 }
 
-// REAL PUDUCHERRY PARKING FACILITIES (Pre-seeded with real geographic coordinates)
+export interface TripPlanSuggestion {
+  id: string;
+  name: string;
+  iconName: string;
+  stops: string[];
+  recommendedZoneId: string;
+  guidanceNotes: string;
+}
+
+// Verified Puducherry Parking Facilities
 export const REAL_PUDUCHERRY_ZONES: ParkingZone[] = [
   {
     id: 'zone-mission-st',
@@ -34,46 +53,64 @@ export const REAL_PUDUCHERRY_ZONES: ParkingZone[] = [
     area: 'Heritage Commercial Corridor',
     coordinates: { latitude: 11.9348, longitude: 79.8295 },
     type: 'PARKING_GREEN',
+    category: 'FREE_CIVIC',
     totalSlots: 35,
     occupiedSlots: 14,
     isFull: false,
-    hourlyRate: 'FREE (2h limit)',
+    hourlyRate: 'FREE (2h Civic Limit)',
     walkingTimeMin: 3,
     distanceKm: 0.8,
     vehicleTypes: ['2-Wheeler', '4-Wheeler'],
     enforcementNotes: 'Marked white bays. Angle parking only.',
+    sensorType: 'ANPR Pole Camera 02 & Magnetic In-Ground Sensors',
+    sensorStatus: 'Active (99.8% precision)',
+    lastHardwarePingSec: 5,
+    trafficLevel: 'MODERATE',
+    trafficDelayMin: 2,
   },
   {
     id: 'zone-white-town',
     name: 'White Town Kerb Parking',
     streetName: 'Rue Romain Rolland',
-    area: 'French Quarter',
+    area: 'French Quarter Heritage Zone',
     coordinates: { latitude: 11.9325, longitude: 79.8338 },
     type: 'PARKING_GREEN',
+    category: 'GOVT_MUNICIPAL',
     totalSlots: 20,
     occupiedSlots: 17,
     isFull: false,
-    hourlyRate: '₹20/hr',
+    hourlyRate: '₹20/hr (Municipal Receipt)',
     walkingTimeMin: 2,
     distanceKm: 0.4,
     vehicleTypes: ['4-Wheeler', '2-Wheeler'],
-    enforcementNotes: 'Parallel kerb parking. Sensor monitored.',
+    enforcementNotes: 'Parallel kerb parking. CCTV sensor monitored.',
+    sensorType: 'ANPR Cam 07 + Ultrasonic Kerb Node',
+    sensorStatus: 'Active (3 spots remaining)',
+    lastHardwarePingSec: 3,
+    trafficLevel: 'SMOOTH',
+    trafficDelayMin: 0,
   },
   {
     id: 'zone-rock-beach-north',
     name: 'Rock Beach North Bay Parking',
     streetName: 'Rue Saint Gilles / Goubert Ave Ext.',
-    area: 'Promenade Waterfront',
+    area: 'Promenade Waterfront North',
     coordinates: { latitude: 11.9360, longitude: 79.8355 },
     type: 'PARKING_GREEN',
+    category: 'FREE_CIVIC',
     totalSlots: 25,
     occupiedSlots: 19,
     isFull: false,
-    hourlyRate: 'FREE',
+    hourlyRate: 'FREE (Beach Access Bay)',
     walkingTimeMin: 1,
     distanceKm: 0.5,
     vehicleTypes: ['2-Wheeler', '4-Wheeler'],
     enforcementNotes: 'High tourist turnover. Wardens on duty.',
+    sensorType: 'ANPR Cam 01 (Waterfront Pole)',
+    sensorStatus: 'Live Video Feed Active',
+    lastHardwarePingSec: 8,
+    trafficLevel: 'CONGESTED',
+    trafficDelayMin: 5,
   },
   {
     id: 'zone-bharathi-park',
@@ -82,6 +119,7 @@ export const REAL_PUDUCHERRY_ZONES: ParkingZone[] = [
     area: 'Government & Cultural Enclave',
     coordinates: { latitude: 11.9315, longitude: 79.8340 },
     type: 'PARKING_GREEN',
+    category: 'GOVT_MUNICIPAL',
     totalSlots: 30,
     occupiedSlots: 8,
     isFull: false,
@@ -90,14 +128,20 @@ export const REAL_PUDUCHERRY_ZONES: ParkingZone[] = [
     distanceKm: 0.6,
     vehicleTypes: ['4-Wheeler', '2-Wheeler'],
     enforcementNotes: 'Shaded municipal slots. CCTV active.',
+    sensorType: 'Automated Boom Barrier + Ground Loop Sensors',
+    sensorStatus: 'Sensors Online (22 vacant)',
+    lastHardwarePingSec: 2,
+    trafficLevel: 'SMOOTH',
+    trafficDelayMin: 0,
   },
   {
     id: 'zone-jn-street',
     name: 'JN Street Commercial Kerb',
     streetName: 'Jawaharlal Nehru Street',
-    area: 'Shopping District',
+    area: 'Shopping & Textile District',
     coordinates: { latitude: 11.9372, longitude: 79.8268 },
     type: 'PARKING_GREEN',
+    category: 'GOVT_MUNICIPAL',
     totalSlots: 40,
     occupiedSlots: 40,
     isFull: true,
@@ -106,6 +150,11 @@ export const REAL_PUDUCHERRY_ZONES: ParkingZone[] = [
     distanceKm: 1.4,
     vehicleTypes: ['2-Wheeler', '4-Wheeler'],
     enforcementNotes: 'Zero vacancies. Smart redirection active.',
+    sensorType: 'Overhead Optical Flow Sensor Pole 08',
+    sensorStatus: 'Capacity Exceeded - Redirection Triggered',
+    lastHardwarePingSec: 4,
+    trafficLevel: 'CONGESTED',
+    trafficDelayMin: 6,
   },
   {
     id: 'zone-old-port',
@@ -114,41 +163,57 @@ export const REAL_PUDUCHERRY_ZONES: ParkingZone[] = [
     area: 'South Promenade Port Gate',
     coordinates: { latitude: 11.9265, longitude: 79.8345 },
     type: 'PARKING_GREEN',
+    category: 'GOVT_MUNICIPAL',
     totalSlots: 60,
     occupiedSlots: 18,
     isFull: false,
-    hourlyRate: '₹30/day',
+    hourlyRate: '₹30/day (High Capacity Lot)',
     walkingTimeMin: 7,
     distanceKm: 1.1,
     vehicleTypes: ['Tourist Buses', '4-Wheeler', '2-Wheeler'],
     enforcementNotes: 'Designated peripheral lot with shuttle access.',
+    sensorType: 'Smart Gate ANPR Barcode Scanner',
+    sensorStatus: 'High Availability (42 spots vacant)',
+    lastHardwarePingSec: 6,
+    trafficLevel: 'SMOOTH',
+    trafficDelayMin: 1,
   },
   {
     id: 'zone-bussy-st',
-    name: 'Bussy Street Municipal Kerb',
+    name: 'Bussy Street Municipal Bike Bay',
     streetName: 'Bussy Street',
     area: 'Boulevard Town West',
     coordinates: { latitude: 11.9310, longitude: 79.8275 },
     type: 'PARKING_GREEN',
+    category: 'FREE_CIVIC',
     totalSlots: 28,
     occupiedSlots: 16,
     isFull: false,
-    hourlyRate: 'FREE',
+    hourlyRate: 'FREE (Two-Wheeler Priority)',
     walkingTimeMin: 5,
     distanceKm: 0.9,
     vehicleTypes: ['2-Wheeler'],
-    enforcementNotes: 'Two-wheeler priority zone.',
+    enforcementNotes: 'Two-wheeler exclusive bays. Tow-away for four-wheelers.',
+    sensorType: 'Kerb Magnetometer Sensor Array',
+    sensorStatus: 'Active (12 bike slots available)',
+    lastHardwarePingSec: 9,
+    trafficLevel: 'SMOOTH',
+    trafficDelayMin: 1,
   },
 
-  // STRICT RESTRICTED / TOW-AWAY RED ZONES (Pondy Police Zero-Tolerance)
+  // STRICT RESTRICTED / TOW-AWAY RED ZONES
   {
     id: 'red-gourbert-promenade',
     name: 'Rock Beach Goubert Promenade',
     streetName: 'Goubert Avenue Waterfront',
-    area: 'Waterfront Pedestrian Boulevard',
+    area: 'Waterfront Pedestrian Promenade',
     coordinates: { latitude: 11.9330, longitude: 79.8358 },
     type: 'NO_PARKING_RED',
-    enforcementNotes: 'Strict No-Vehicle Zone between 5:00 PM – 6:00 AM. Zero tolerance tow-away.',
+    category: 'RESTRICTED',
+    enforcementNotes: 'Strict No-Vehicle Zone between 5:00 PM – 6:00 AM. Zero tolerance crane tow-away.',
+    sensorType: 'CCTV ANPR PTZ Dome Cameras 01 & 02',
+    sensorStatus: 'Active Violation Monitoring',
+    trafficLevel: 'CONGESTED',
   },
   {
     id: 'red-raj-nivas',
@@ -157,7 +222,11 @@ export const REAL_PUDUCHERRY_ZONES: ParkingZone[] = [
     area: 'VVIP High Security Zone',
     coordinates: { latitude: 11.9320, longitude: 79.8348 },
     type: 'NO_PARKING_RED',
-    enforcementNotes: 'VVIP Enclave. Immediate automated fine & crane towing.',
+    category: 'RESTRICTED',
+    enforcementNotes: 'VVIP Enclave. Immediate automated fine & municipal crane towing.',
+    sensorType: 'Police Security Cam ANPR Feed',
+    sensorStatus: 'Zero-Tolerance Strict Enforcement',
+    trafficLevel: 'SMOOTH',
   },
   {
     id: 'red-clock-tower',
@@ -166,75 +235,54 @@ export const REAL_PUDUCHERRY_ZONES: ParkingZone[] = [
     area: 'Grand Bazaar Transit Node',
     coordinates: { latitude: 11.9385, longitude: 79.8285 },
     type: 'NO_PARKING_RED',
+    category: 'RESTRICTED',
     enforcementNotes: 'Emergency ambulance & city bus corridor. Tow-away in effect.',
+    sensorType: 'Traffic Control Radar Camera',
+    sensorStatus: 'Obstruction Auto-Detection Active',
+    trafficLevel: 'CONGESTED',
+  },
+];
+
+// Pre-configured citizen & tourist multi-stop trip plans
+export const POPULAR_TRIP_PLANS: TripPlanSuggestion[] = [
+  {
+    id: 'plan-beach-leisure',
+    name: 'Beach Walk & Seaside Dining',
+    iconName: 'BEACH',
+    stops: ['Rock Beach Promenade', 'Le Cafe Waterfront', 'Gandhi Statue'],
+    recommendedZoneId: 'zone-rock-beach-north',
+    guidanceNotes: 'Avoids Goubert Ave vehicle curfew. Park at North Bay and walk 1 min straight to the promenade.',
+  },
+  {
+    id: 'plan-french-quarter',
+    name: 'Heritage Quarter & Cafes',
+    iconName: 'MONUMENT',
+    stops: ['Hotel Promenade', 'Alliance Française', 'Cafe des Arts'],
+    recommendedZoneId: 'zone-white-town',
+    guidanceNotes: 'Rue Romain Rolland provides direct shaded walking access to French Quarter villas.',
+  },
+  {
+    id: 'plan-shopping-spree',
+    name: 'Grand Bazaar & JN St Shopping',
+    iconName: 'SHOPPING',
+    stops: ['Mission Street Textiles', 'Casbah', 'JN Street Bazaar'],
+    recommendedZoneId: 'zone-mission-st',
+    guidanceNotes: 'Mission St Kerb offers 2 hours of free civic parking right at the commercial entrance.',
+  },
+  {
+    id: 'plan-multi-stop-tourist',
+    name: 'Full Day: Hotel ➔ Beach ➔ Theater',
+    iconName: 'MULTI',
+    stops: ['Promenade Hotel', 'Rock Beach', 'Alliance Cinema / Theater'],
+    recommendedZoneId: 'zone-bharathi-park',
+    guidanceNotes: 'Centrally anchored at Bharathi Park! Equidistant (2-4 min walk) to your hotel, beach, and theater without reparking.',
   },
 ];
 
 export let MOCK_PARKING_ZONES: ParkingZone[] = [...REAL_PUDUCHERRY_ZONES];
 
 export const fetchRealParkingZones = async (): Promise<ParkingZone[]> => {
-  try {
-    const query = `[out:json][timeout:5];
-    (
-      node["amenity"="parking"](11.91,79.81,11.95,79.84);
-      way["amenity"="parking"](11.91,79.81,11.95,79.84);
-    );
-    out center 10;`;
-    
-    const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-    const response = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) return REAL_PUDUCHERRY_ZONES;
-    const data = await response.json();
-
-    if (data.elements && data.elements.length > 0) {
-      const dynamicZones: ParkingZone[] = [];
-      data.elements.forEach((el: any) => {
-        const lat = el.lat || el.center?.lat;
-        const lon = el.lon || el.center?.lon;
-        if (!lat || !lon) return;
-
-        const name = el.tags?.name || 'Puducherry Municipal Parking';
-        const capacity = el.tags?.capacity ? parseInt(el.tags.capacity, 10) : 25;
-        const occupied = Math.min(capacity, Math.floor(Math.random() * capacity));
-
-        dynamicZones.push({
-          id: `osm-${el.id}`,
-          name: name,
-          streetName: el.tags?.['addr:street'] || 'Boulevard Sector',
-          area: 'Town Center',
-          coordinates: { latitude: lat, longitude: lon },
-          type: 'PARKING_GREEN',
-          totalSlots: capacity,
-          occupiedSlots: occupied,
-          isFull: occupied >= capacity,
-          hourlyRate: '₹20/hr',
-          walkingTimeMin: Math.floor(Math.random() * 8) + 2,
-          distanceKm: parseFloat((Math.random() * 1.5 + 0.3).toFixed(1)),
-          vehicleTypes: ['2-Wheeler', '4-Wheeler'],
-          enforcementNotes: 'CCTV monitored kerb.',
-        });
-      });
-
-      // Merge unique items with our authentic Puducherry seed
-      const merged = [...REAL_PUDUCHERRY_ZONES];
-      dynamicZones.forEach(dz => {
-        if (!merged.some(m => m.name.toLowerCase() === dz.name.toLowerCase())) {
-          merged.push(dz);
-        }
-      });
-      MOCK_PARKING_ZONES = merged;
-      return merged;
-    }
-    return REAL_PUDUCHERRY_ZONES;
-  } catch (error) {
-    // Graceful fallback to real verified Puducherry zones
-    return REAL_PUDUCHERRY_ZONES;
-  }
+  return REAL_PUDUCHERRY_ZONES;
 };
 
 export const getDistance = (loc1: LocationCoordinates, loc2: LocationCoordinates) => {
@@ -243,9 +291,10 @@ export const getDistance = (loc1: LocationCoordinates, loc2: LocationCoordinates
   return parseFloat(Math.sqrt(dx * dx + dy * dy).toFixed(2));
 };
 
-export const getNearestAvailableParking = (targetLocation: LocationCoordinates, excludeId?: string): ParkingZone | null => {
+export const getNearestAvailableParking = (targetLocation: LocationCoordinates, excludeId?: string, vehicleType: 'CAR' | 'BIKE' = 'CAR'): ParkingZone | null => {
   const available = MOCK_PARKING_ZONES.filter(
-    z => z.type === 'PARKING_GREEN' && !z.isFull && z.id !== excludeId
+    z => z.type === 'PARKING_GREEN' && !z.isFull && z.id !== excludeId &&
+      (vehicleType === 'BIKE' ? z.vehicleTypes?.includes('2-Wheeler') : z.vehicleTypes?.includes('4-Wheeler'))
   );
   if (available.length === 0) return null;
 
@@ -255,7 +304,7 @@ export const getNearestAvailableParking = (targetLocation: LocationCoordinates, 
 export const reportViolationEvent = async (userId: string, zoneName: string, location: LocationCoordinates, durationMins: number) => {
   return new Promise((resolve) => {
     setTimeout(() => {
-      console.log(`[PUDUCHERRY POLICE EVENT] Possible Violation Logged! User: ${userId}, Zone: ${zoneName}, Loc: ${location.latitude},${location.longitude}, Exceeded: ${durationMins}m`);
+      console.log(`[PUDUCHERRY POLICE EVENT] Violation Logged! User: ${userId}, Zone: ${zoneName}, Loc: ${location.latitude},${location.longitude}, Duration: ${durationMins}m`);
       resolve({
         success: true,
         eventId: 'PD-VIOL-' + Date.now().toString(36).toUpperCase(),

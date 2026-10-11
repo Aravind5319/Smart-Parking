@@ -101,10 +101,9 @@ const MapView = forwardRef((props: any, ref) => {
       attributionControl: false
     });
 
-    // High definition crisp city map tiles
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      subdomains: 'abcd'
+    // Standard free OpenStreetMap tiles with zero watermark
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19
     }).addTo(map);
 
     // Strict No-Parking Tow-Away Zone Polygons (Goubert Promenade waterfront & Raj Nivas)
