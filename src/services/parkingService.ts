@@ -33,6 +33,7 @@ export interface ParkingZone {
   // Traffic flow status to reach this zone
   trafficLevel?: 'SMOOTH' | 'MODERATE' | 'CONGESTED';
   trafficDelayMin?: number;
+  imageKey?: string;
 }
 
 export interface TripPlanSuggestion {
@@ -271,7 +272,7 @@ export const POPULAR_TRIP_PLANS: TripPlanSuggestion[] = [
   },
   {
     id: 'plan-multi-stop-tourist',
-    name: 'Full Day: Hotel ➔ Beach ➔ Theater',
+    name: 'Full Day: Hotel -> Beach -> Theater',
     iconName: 'MULTI',
     stops: ['Promenade Hotel', 'Rock Beach', 'Alliance Cinema / Theater'],
     recommendedZoneId: 'zone-bharathi-park',

@@ -451,6 +451,47 @@ export const LayersIcon: React.FC<IconProps> = ({ color = '#0B2559', size = 13, 
   return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
 };
 
+// 32. Crosshair / Radar Locate Icon
+export const CrosshairIcon: React.FC<IconProps> = ({ color = '#0B2559', size = 18, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <circle cx="12" cy="12" r="10" />
+        <line x1="22" y1="12" x2="18" y2="12" />
+        <line x1="6" y1="12" x2="2" y2="12" />
+        <line x1="12" y1="6" x2="12" y2="2" />
+        <line x1="12" y1="22" x2="12" y2="18" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 33. Phone Call / Emergency Helpline Icon
+export const PhoneCallIcon: React.FC<IconProps> = ({ color = '#FFFFFF', size = 16, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 34. Check Circle / Verified Seal Icon
+export const CheckCircleIcon: React.FC<IconProps> = ({ color = '#10B981', size = 16, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+        <polyline points="22 4 12 14.01 9 11.01" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
 const styles = StyleSheet.create({
   fallbackBox: {
     borderWidth: 1.5,

@@ -458,7 +458,7 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
             }}
             style={styles.closeCamBtn}
           >
-            <Text style={styles.closeCamText}>✕ Cancel</Text>
+            <Text style={styles.closeCamText}>Cancel</Text>
           </TouchableOpacity>
           <Text style={styles.cameraTitle}>Live Camera Evidence</Text>
           <View style={styles.livePill}>
