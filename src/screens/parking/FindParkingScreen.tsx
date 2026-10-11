@@ -28,6 +28,10 @@ import {
   ParkTreeIcon,
   AnchorIcon,
   ProhibitedIcon,
+  MapIcon,
+  FileTextIcon,
+  PoliceShieldIcon,
+  SirenIcon,
 } from '../../components/common/Icons';
 import {
   ParkingZone,
@@ -39,7 +43,10 @@ import {
   fetchRealParkingZones,
 } from '../../services/parkingService';
 
+type ViewMode = 'MAP' | 'DIRECTORY' | 'ENFORCEMENT';
+
 export const FindParkingScreen: React.FC = () => {
+  const [viewMode, setViewMode] = useState<ViewMode>('MAP');
   const [searchQuery, setSearchQuery] = useState('');
   const [zones, setZones] = useState<ParkingZone[]>(REAL_PUDUCHERRY_ZONES);
   const [selectedZone, setSelectedZone] = useState<ParkingZone | null>(REAL_PUDUCHERRY_ZONES[0]);
@@ -49,9 +56,9 @@ export const FindParkingScreen: React.FC = () => {
     longitude: 79.8310,
   });
   const [isLocating, setIsLocating] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<'ALL' | 'AVAILABLE' | '2W' | '4W' | 'RESTRICTED'>('ALL');
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'AVAILABLE' | '2W' | '4W'>('ALL');
   
-  // 10-minute warning countdown simulation (demo set to 10 seconds or 600s)
+  // 10-minute warning countdown simulation
   const [warningTimer, setWarningTimer] = useState<number | null>(null);
   const [violationGenerated, setViolationGenerated] = useState(false);
   const [activeWarningZone, setActiveWarningZone] = useState<string>('');
@@ -126,7 +133,7 @@ export const FindParkingScreen: React.FC = () => {
 
     if (inRestricted && warningTimer === null && !violationGenerated) {
       setActiveWarningZone(matchedZoneName);
-      setWarningTimer(10); // 10-second demo representation for review
+      setWarningTimer(10);
     } else if (!inRestricted && warningTimer !== null) {
       setWarningTimer(null);
       setActiveWarningZone('');
@@ -165,7 +172,6 @@ export const FindParkingScreen: React.FC = () => {
       });
     }
 
-    // Find nearest green parking
     const nearest = [...zones]
       .filter((z) => z.type === 'PARKING_GREEN')
       .sort((a, b) => getDistance(coords, a.coordinates) - getDistance(coords, b.coordinates))[0];
@@ -204,6 +210,7 @@ export const FindParkingScreen: React.FC = () => {
     setViolationGenerated(false);
     setWarningTimer(10);
     setSelectedZone(rockBeachRedZone);
+    setViewMode('ENFORCEMENT');
   };
 
   const formatTime = (seconds: number) => {
@@ -214,8 +221,12 @@ export const FindParkingScreen: React.FC = () => {
     return `${m}:${s}`;
   };
 
-  // Filtered zones
-  const filteredZones = zones.filter((zone) => {
+  const greenZones = zones.filter((z) => z.type === 'PARKING_GREEN');
+  const redZones = zones.filter((z) => z.type === 'NO_PARKING_RED');
+  const totalVacantCount = greenZones.reduce((sum, z) => sum + (z.isFull ? 0 : (z.totalSlots! - z.occupiedSlots!)), 0);
+
+  // Filtered zones for Directory
+  const filteredGreenZones = greenZones.filter((zone) => {
     if (searchQuery.trim().length > 0) {
       const query = searchQuery.toLowerCase();
       const match =
@@ -226,659 +237,845 @@ export const FindParkingScreen: React.FC = () => {
     }
 
     if (activeFilter === 'AVAILABLE') {
-      return zone.type === 'PARKING_GREEN' && !zone.isFull;
+      return !zone.isFull;
     }
     if (activeFilter === '2W') {
-      return zone.type === 'PARKING_GREEN' && zone.vehicleTypes?.includes('2-Wheeler');
+      return zone.vehicleTypes?.includes('2-Wheeler');
     }
     if (activeFilter === '4W') {
-      return zone.type === 'PARKING_GREEN' && zone.vehicleTypes?.includes('4-Wheeler');
-    }
-    if (activeFilter === 'RESTRICTED') {
-      return zone.type === 'NO_PARKING_RED';
+      return zone.vehicleTypes?.includes('4-Wheeler');
     }
     return true;
   });
 
   return (
     <View style={styles.container}>
+      {/* 1. Official Puducherry Police Command Header Bar */}
+      <View style={styles.commandBanner}>
+        <View style={styles.commandTopRow}>
+          <Image
+            source={require('../../../assets/police_logo.png')}
+            style={styles.bannerLogo}
+            resizeMode="contain"
+          />
+          <View style={styles.commandTextCol}>
+            <Text style={styles.commandAgency}>GOVERNMENT OF PUDUCHERRY • POLICE DEPARTMENT</Text>
+            <Text style={styles.commandTitle}>ParkPuduvai Smart Parking Command</Text>
+          </View>
+        </View>
+
+        <View style={styles.commandStatsRow}>
+          <View style={styles.commandStatPill}>
+            <View style={[styles.statDot, { backgroundColor: '#10B981' }]} />
+            <Text style={styles.statPillText}>{totalVacantCount} Monitored Vacancies</Text>
+          </View>
+          <View style={styles.commandStatPill}>
+            <View style={[styles.statDot, { backgroundColor: '#EF4444' }]} />
+            <Text style={styles.statPillText}>3 Tow-Away Corridors</Text>
+          </View>
+          <View style={styles.commandStatPill}>
+            <View style={[styles.statDot, { backgroundColor: '#F59E0B' }]} />
+            <Text style={styles.statPillText}>10m Tow Warning</Text>
+          </View>
+        </View>
+      </View>
+
+      {/* 2. Top Segmented Mode Switcher (Clean, Spacious UX) */}
+      <View style={styles.modeSwitcherContainer}>
+        <TouchableOpacity
+          style={[styles.modeTab, viewMode === 'MAP' && styles.modeTabActive]}
+          onPress={() => setViewMode('MAP')}
+          activeOpacity={0.8}
+        >
+          <MapIcon color={viewMode === 'MAP' ? '#FFFFFF' : '#64748B'} size={14} />
+          <Text style={[styles.modeTabText, viewMode === 'MAP' && styles.modeTabTextActive]}>
+            Live Map & Radar
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.modeTab, viewMode === 'DIRECTORY' && styles.modeTabActive]}
+          onPress={() => setViewMode('DIRECTORY')}
+          activeOpacity={0.8}
+        >
+          <FileTextIcon color={viewMode === 'DIRECTORY' ? '#FFFFFF' : '#64748B'} size={14} />
+          <Text style={[styles.modeTabText, viewMode === 'DIRECTORY' && styles.modeTabTextActive]}>
+            Directory ({greenZones.length})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.modeTab, viewMode === 'ENFORCEMENT' && styles.modeTabActiveRed]}
+          onPress={() => setViewMode('ENFORCEMENT')}
+          activeOpacity={0.8}
+        >
+          <SirenIcon color={viewMode === 'ENFORCEMENT' ? '#FFFFFF' : '#64748B'} size={14} />
+          <Text style={[styles.modeTabText, viewMode === 'ENFORCEMENT' && styles.modeTabTextActive]}>
+            Enforcement ({redZones.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
 
-        {/* 1. Official Puducherry Police Command Banner */}
-        <View style={styles.commandBanner}>
-          <View style={styles.commandTopRow}>
-            <Image
-              source={require('../../../assets/police_logo.png')}
-              style={styles.bannerLogo}
-              resizeMode="contain"
-            />
-            <View style={styles.commandTextCol}>
-              <Text style={styles.commandAgency}>GOVERNMENT OF PUDUCHERRY • POLICE DEPARTMENT</Text>
-              <Text style={styles.commandTitle}>ParkPuduvai Smart Parking Command</Text>
+        {/* ========================================================================= */}
+        {/* MODE 1: LIVE MAP & RADAR                                                  */}
+        {/* ========================================================================= */}
+        {viewMode === 'MAP' && (
+          <View style={styles.tabSection}>
+            {/* Quick Destination Chips */}
+            <View style={styles.destinationBar}>
+              <Text style={styles.barLabel}>QUICK DESTINATIONS</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.quickChipsScroll}
+              >
+                <TouchableOpacity
+                  style={styles.quickChip}
+                  onPress={() =>
+                    handleSelectDestination('Rock Beach', { latitude: 11.933, longitude: 79.8358 })
+                  }
+                >
+                  <BeachIcon color="#0B2559" size={13} />
+                  <Text style={styles.quickChipText}>Rock Beach</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickChip}
+                  onPress={() =>
+                    handleSelectDestination('White Town', { latitude: 11.9325, longitude: 79.8338 })
+                  }
+                >
+                  <MonumentIcon color="#0B2559" size={13} />
+                  <Text style={styles.quickChipText}>White Town</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickChip}
+                  onPress={() =>
+                    handleSelectDestination('Mission Street', { latitude: 11.9348, longitude: 79.8295 })
+                  }
+                >
+                  <ShoppingBagIcon color="#0B2559" size={13} />
+                  <Text style={styles.quickChipText}>Mission St</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickChip}
+                  onPress={() =>
+                    handleSelectDestination('Bharathi Park', { latitude: 11.9315, longitude: 79.834 })
+                  }
+                >
+                  <ParkTreeIcon color="#0B2559" size={13} />
+                  <Text style={styles.quickChipText}>Bharathi Park</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.quickChip}
+                  onPress={() =>
+                    handleSelectDestination('Old Port', { latitude: 11.9265, longitude: 79.8345 })
+                  }
+                >
+                  <AnchorIcon color="#0B2559" size={13} />
+                  <Text style={styles.quickChipText}>Old Port</Text>
+                </TouchableOpacity>
+              </ScrollView>
             </View>
-          </View>
 
-          <View style={styles.commandStatsRow}>
-            <View style={styles.commandStatPill}>
-              <View style={[styles.statDot, { backgroundColor: '#10B981' }]} />
-              <Text style={styles.statPillText}>114 Vacancies Monitored</Text>
-            </View>
-            <View style={styles.commandStatPill}>
-              <View style={[styles.statDot, { backgroundColor: '#EF4444' }]} />
-              <Text style={styles.statPillText}>3 Tow-Away Corridors</Text>
-            </View>
-            <View style={styles.commandStatPill}>
-              <View style={[styles.statDot, { backgroundColor: '#F59E0B' }]} />
-              <Text style={styles.statPillText}>10m Tow Warning</Text>
-            </View>
-          </View>
-        </View>
-
-        {/* 2. Destination Search & GPS Bar */}
-        <View style={styles.searchCard}>
-          <View style={styles.searchBar}>
-            <SearchIcon color="#0B2559" size={17} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search destination (e.g. Rock Beach, White Town)"
-              placeholderTextColor="#94A3B8"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearBtn}>
-                <Text style={styles.clearBtnText}>Clear</Text>
+            {/* Live GPS Location Bar */}
+            <View style={styles.locationBarRow}>
+              <TouchableOpacity
+                style={styles.locationBarBtn}
+                onPress={handleGetCurrentLocation}
+                disabled={isLocating}
+                activeOpacity={0.8}
+              >
+                <LocationPinIcon color="#0B2559" size={15} />
+                <Text style={styles.locationBarBtnText}>
+                  {isLocating ? 'Acquiring GPS...' : 'Use My GPS Location'}
+                </Text>
               </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.quickWarnBtn}
+                onPress={triggerDemoWarning}
+                activeOpacity={0.8}
+              >
+                <WarningIcon color="#D31826" size={13} />
+                <Text style={styles.quickWarnBtnText}>Test 10m Warning</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Leaflet Locked Interactive Map */}
+            <MapView
+              ref={mapRef}
+              style={styles.mapArea}
+              provider={PROVIDER_GOOGLE}
+              initialRegion={{
+                latitude: 11.9338,
+                longitude: 79.831,
+                latitudeDelta: 0.03,
+                longitudeDelta: 0.03,
+              }}
+              showsUserLocation={true}
+              showsMyLocationButton={true}
+            >
+              {zones.map((zone) => {
+                const isGreen = zone.type === 'PARKING_GREEN';
+                const markerColor = isGreen
+                  ? zone.isFull
+                    ? Colors.policeRed
+                    : zone.occupiedSlots && zone.totalSlots && (zone.occupiedSlots / zone.totalSlots) > 0.7
+                    ? '#F59E0B'
+                    : Colors.parkingGreen
+                  : Colors.policeRed;
+
+                return (
+                  <Marker
+                    key={zone.id}
+                    coordinate={zone.coordinates}
+                    title={zone.name}
+                    pinColor={markerColor}
+                    onPress={() => handleSelectZone(zone)}
+                  />
+                );
+              })}
+
+              {zones
+                .filter((z) => z.type === 'NO_PARKING_RED')
+                .map((zone) => (
+                  <Circle
+                    key={`circle-${zone.id}`}
+                    center={zone.coordinates}
+                    radius={250}
+                    fillColor="rgba(211, 24, 38, 0.22)"
+                    strokeColor="rgba(211, 24, 38, 0.8)"
+                  />
+                ))}
+            </MapView>
+
+            {/* Horizontal Swipable Parking Card Carousel (Google Maps / Apple Maps style) */}
+            <View style={styles.carouselSection}>
+              <View style={styles.carouselHeaderRow}>
+                <Text style={styles.carouselTitle}>NEARBY AUTHORIZED PARKING BAYS</Text>
+                <TouchableOpacity onPress={() => setViewMode('DIRECTORY')}>
+                  <Text style={styles.carouselViewAllText}>View All ({greenZones.length}) →</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.carouselCardsScroll}
+              >
+                {greenZones.map((zone) => {
+                  const vacant = zone.isFull ? 0 : (zone.totalSlots! - zone.occupiedSlots!);
+                  const isSelected = selectedZone?.id === zone.id;
+
+                  return (
+                    <TouchableOpacity
+                      key={zone.id}
+                      style={[
+                        styles.carouselCard,
+                        isSelected && styles.carouselCardSelected,
+                      ]}
+                      onPress={() => handleSelectZone(zone)}
+                      activeOpacity={0.85}
+                    >
+                      <View style={styles.cardHeaderRow}>
+                        <Text style={styles.cardTitle} numberOfLines={1}>{zone.name}</Text>
+                        <View
+                          style={[
+                            styles.cardBadge,
+                            zone.isFull
+                              ? styles.badgeRed
+                              : vacant <= 5
+                              ? styles.badgeAmber
+                              : styles.badgeGreen,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.cardBadgeText,
+                              zone.isFull
+                                ? styles.textRed
+                                : vacant <= 5
+                                ? styles.textAmber
+                                : styles.textGreen,
+                            ]}
+                          >
+                            {zone.isFull ? 'FULL' : `${vacant} LEFT`}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text style={styles.cardSubText} numberOfLines={1}>
+                        {zone.streetName} • {zone.area}
+                      </Text>
+
+                      {/* Mini Occupancy Bar */}
+                      <View style={styles.cardProgressTrack}>
+                        <View
+                          style={[
+                            styles.cardProgressFill,
+                            {
+                              width: `${Math.min(100, Math.round((zone.occupiedSlots! / zone.totalSlots!) * 100))}%`,
+                              backgroundColor: zone.isFull
+                                ? '#EF4444'
+                                : (zone.occupiedSlots! / zone.totalSlots!) > 0.7
+                                ? '#F59E0B'
+                                : '#10B981',
+                            },
+                          ]}
+                        />
+                      </View>
+
+                      <View style={styles.cardMetaRow}>
+                        <Text style={styles.cardMetaText}>📍 {zone.distanceKm} km</Text>
+                        <Text style={styles.cardMetaDivider}>•</Text>
+                        <Text style={styles.cardMetaText}>🚶 {zone.walkingTimeMin}m walk</Text>
+                        <Text style={styles.cardMetaDivider}>•</Text>
+                        <Text style={styles.cardMetaText}>{zone.hourlyRate}</Text>
+                      </View>
+
+                      <TouchableOpacity
+                        style={styles.cardDirectionsBtn}
+                        onPress={() =>
+                          Alert.alert('Navigation Initialized', `Route to ${zone.name} active.`)
+                        }
+                      >
+                        <NavigationIcon color="#FFFFFF" size={12} />
+                        <Text style={styles.cardDirectionsBtnText}>Directions</Text>
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            {/* Selected Zone Detail Card */}
+            {selectedZone && (
+              <View
+                style={[
+                  styles.selectedCard,
+                  selectedZone.type === 'NO_PARKING_RED' && styles.selectedCardRed,
+                ]}
+              >
+                <View style={styles.selectedHeaderRow}>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.zoneTypeBadgeRow}>
+                      <View
+                        style={[
+                          styles.zoneTypeBadge,
+                          selectedZone.type === 'PARKING_GREEN'
+                            ? styles.badgeGreen
+                            : styles.badgeRed,
+                        ]}
+                      >
+                        <View
+                          style={[
+                            styles.indicatorDot,
+                            {
+                              backgroundColor:
+                                selectedZone.type === 'PARKING_GREEN' ? '#059669' : '#DC2626',
+                            },
+                          ]}
+                        />
+                        <Text
+                          style={[
+                            styles.zoneTypeBadgeText,
+                            selectedZone.type === 'PARKING_GREEN'
+                              ? styles.textGreen
+                              : styles.textRed,
+                          ]}
+                        >
+                          {selectedZone.type === 'PARKING_GREEN'
+                            ? 'AUTHORIZED CIVIC PARKING'
+                            : 'STRICT NO-PARKING / TOW-AWAY'}
+                        </Text>
+                      </View>
+                      <Text style={styles.zoneAreaText}>{selectedZone.area}</Text>
+                    </View>
+
+                    <Text style={styles.selectedZoneName}>{selectedZone.name}</Text>
+                    <View style={styles.selectedLocationRow}>
+                      <LocationPinIcon color="#CBD5E1" size={13} />
+                      <Text style={styles.selectedStreetName}>{selectedZone.streetName}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                {selectedZone.type === 'NO_PARKING_RED' ? (
+                  <View style={styles.redDetailsBox}>
+                    <View style={styles.redDetailsHeader}>
+                      <WarningIcon color="#FCA5A5" size={14} />
+                      <Text style={styles.redDetailsTitle}>Police Enforcement Advisory</Text>
+                    </View>
+                    <Text style={styles.redDetailsText}>{selectedZone.enforcementNotes}</Text>
+                    <TouchableOpacity
+                      style={styles.redirectActionBtn}
+                      onPress={() => {
+                        const nearest = getNearestAvailableParking(selectedZone.coordinates);
+                        if (nearest) handleSelectZone(nearest);
+                      }}
+                    >
+                      <NavigationIcon color="#FFFFFF" size={14} />
+                      <Text style={styles.redirectActionBtnText}>
+                        Find Nearest Safe Parking
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <>
+                    {/* Occupancy Meter */}
+                    <View style={styles.occupancyMeterBox}>
+                      <View style={styles.meterHeader}>
+                        <Text style={styles.meterLabel}>BAY OCCUPANCY & AVAILABILITY</Text>
+                        <View style={styles.meterStatusBadge}>
+                          <View
+                            style={[
+                              styles.statusDot,
+                              {
+                                backgroundColor: selectedZone.isFull
+                                  ? '#EF4444'
+                                  : (selectedZone.occupiedSlots! / selectedZone.totalSlots!) > 0.7
+                                  ? '#F59E0B'
+                                  : '#10B981',
+                              },
+                            ]}
+                          />
+                          <Text
+                            style={[
+                              styles.meterStatus,
+                              selectedZone.isFull
+                                ? { color: '#EF4444' }
+                                : (selectedZone.occupiedSlots! / selectedZone.totalSlots!) > 0.7
+                                ? { color: '#F59E0B' }
+                                : { color: '#10B981' },
+                            ]}
+                          >
+                            {selectedZone.isFull
+                              ? 'FULL'
+                              : (selectedZone.occupiedSlots! / selectedZone.totalSlots!) > 0.7
+                              ? 'FILLING FAST'
+                              : 'AVAILABLE'}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View style={styles.progressBarTrack}>
+                        <View
+                          style={[
+                            styles.progressBarFill,
+                            {
+                              width: `${Math.min(
+                                100,
+                                Math.round((selectedZone.occupiedSlots! / selectedZone.totalSlots!) * 100)
+                              )}%`,
+                              backgroundColor: selectedZone.isFull
+                                ? '#EF4444'
+                                : (selectedZone.occupiedSlots! / selectedZone.totalSlots!) > 0.7
+                                ? '#F59E0B'
+                                : '#10B981',
+                            },
+                          ]}
+                        />
+                      </View>
+
+                      <View style={styles.slotsCountRow}>
+                        <Text style={styles.slotsVacantHighlight}>
+                          {selectedZone.isFull
+                            ? '0 SPACES VACANT'
+                            : `${selectedZone.totalSlots! - selectedZone.occupiedSlots!} VACANT SPACES`}
+                        </Text>
+                        <Text style={styles.slotsTotalText}>
+                          ({selectedZone.occupiedSlots} occupied of {selectedZone.totalSlots} total)
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Stats Grid */}
+                    <View style={styles.statsGrid}>
+                      <View style={styles.statCell}>
+                        <Text style={styles.statCellLabel}>DISTANCE</Text>
+                        <Text style={styles.statCellValue}>{selectedZone.distanceKm} km</Text>
+                      </View>
+                      <View style={styles.statCell}>
+                        <Text style={styles.statCellLabel}>WALK TIME</Text>
+                        <View style={styles.statIconRow}>
+                          <WalkIcon color="#FFFFFF" size={12} />
+                          <Text style={styles.statCellValue}> {selectedZone.walkingTimeMin} min</Text>
+                        </View>
+                      </View>
+                      <View style={styles.statCell}>
+                        <Text style={styles.statCellLabel}>TARIFF</Text>
+                        <Text style={styles.statCellValue}>{selectedZone.hourlyRate}</Text>
+                      </View>
+                      <View style={styles.statCell}>
+                        <Text style={styles.statCellLabel}>VEHICLES</Text>
+                        <Text style={styles.statCellValue}>
+                          {selectedZone.vehicleTypes?.join(', ') || '2W / 4W'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Smart Redirection Notice if full */}
+                    {selectedZone.isFull && redirectZone && (
+                      <View style={styles.redirectBanner}>
+                        <View style={styles.redirectHeader}>
+                          <RefreshIcon color="#F59E0B" size={16} />
+                          <Text style={styles.redirectTitle}>
+                            Smart Redirection: Nearest Alternative
+                          </Text>
+                        </View>
+                        <Text style={styles.redirectDestination}>
+                          {redirectZone.name}
+                        </Text>
+                        <Text style={styles.redirectSub}>
+                          {redirectZone.totalSlots! - redirectZone.occupiedSlots!} spaces vacant •{' '}
+                          {redirectZone.distanceKm} km away
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.actionBtnRedirect}
+                          onPress={() => handleSelectZone(redirectZone)}
+                        >
+                          <NavigationIcon color="#FFF" size={14} />
+                          <Text style={styles.actionBtnText}>
+                            Divert to {redirectZone.name}
+                          </Text>
+                          <ArrowRightIcon color="#FFF" size={14} />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    {!selectedZone.isFull && (
+                      <TouchableOpacity
+                        style={styles.actionBtnPrimary}
+                        onPress={() =>
+                          Alert.alert(
+                            'Directions Initialized',
+                            `Turn-by-turn route to ${selectedZone.name} loaded.\n\nPuducherry Traffic Police monitors sensor bay status in real-time.`
+                          )
+                        }
+                      >
+                        <NavigationIcon color="#FFF" size={15} />
+                        <Text style={styles.actionBtnText}>Get Navigation Directions</Text>
+                        <ArrowRightIcon color="#FFF" size={15} />
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </View>
             )}
           </View>
-
-          {/* Quick Destination Suggestion Chips */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.quickChipsContainer}
-          >
-            <TouchableOpacity
-              style={styles.quickChip}
-              onPress={() =>
-                handleSelectDestination('Rock Beach', { latitude: 11.933, longitude: 79.8358 })
-              }
-            >
-              <BeachIcon color="#0B2559" size={13} />
-              <Text style={styles.quickChipText}>Rock Beach</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickChip}
-              onPress={() =>
-                handleSelectDestination('White Town', { latitude: 11.9325, longitude: 79.8338 })
-              }
-            >
-              <MonumentIcon color="#0B2559" size={13} />
-              <Text style={styles.quickChipText}>White Town</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickChip}
-              onPress={() =>
-                handleSelectDestination('Mission Street', { latitude: 11.9348, longitude: 79.8295 })
-              }
-            >
-              <ShoppingBagIcon color="#0B2559" size={13} />
-              <Text style={styles.quickChipText}>Mission St</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickChip}
-              onPress={() =>
-                handleSelectDestination('Bharathi Park', { latitude: 11.9315, longitude: 79.834 })
-              }
-            >
-              <ParkTreeIcon color="#0B2559" size={13} />
-              <Text style={styles.quickChipText}>Bharathi Park</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.quickChip}
-              onPress={() =>
-                handleSelectDestination('Old Port', { latitude: 11.9265, longitude: 79.8345 })
-              }
-            >
-              <AnchorIcon color="#0B2559" size={13} />
-              <Text style={styles.quickChipText}>Old Port</Text>
-            </TouchableOpacity>
-          </ScrollView>
-
-          {/* Action Row: Use Location + Test Warning Demo */}
-          <View style={styles.searchActionRow}>
-            <TouchableOpacity
-              style={styles.locationBtn}
-              onPress={handleGetCurrentLocation}
-              disabled={isLocating}
-              activeOpacity={0.8}
-            >
-              <LocationPinIcon color={Colors.policeNavy} size={16} />
-              <Text style={styles.locationBtnText}>
-                {isLocating ? 'Locating GPS...' : 'Use Current Location'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.demoWarningBtn}
-              onPress={triggerDemoWarning}
-              activeOpacity={0.8}
-            >
-              <WarningIcon color="#D31826" size={14} />
-              <Text style={styles.demoWarningBtnText}>Test 10m Warning</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* 3. Real-Time Police No-Parking Warning System (10-Minute Countdown) */}
-        {warningTimer !== null && (
-          <View style={styles.warningCard}>
-            <View style={styles.warningHeader}>
-              <View style={styles.warningIconCircle}>
-                <WarningIcon color="#FFFFFF" size={18} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.warningTitle}>RESTRICTED NO-PARKING ZONE DETECTED</Text>
-                <Text style={styles.warningSubtitle}>
-                  Puducherry Traffic Police • Zero Tolerance Tow-Away Zone
-                </Text>
-              </View>
-            </View>
-
-            <Text style={styles.warningDesc}>
-              Your GPS is within <Text style={{ fontWeight: '800' }}>{activeWarningZone || 'Rock Beach Promenade'}</Text>.
-              Parking is strictly prohibited here. Move your vehicle to an authorized parking bay immediately.
-            </Text>
-
-            <View style={styles.timerBox}>
-              <Text style={styles.timerLabel}>COUNTDOWN BEFORE TOW-AWAY VIOLATION NOTICE:</Text>
-              <Text style={styles.timerValue}>{formatTime(warningTimer)}</Text>
-              <Text style={styles.timerSubNotice}>
-                Automated ANPR and Traffic Warden dispatch triggered at 00:00
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.findSafeParkingBtn}
-              onPress={() => {
-                const nearestSafe = zones.find((z) => z.type === 'PARKING_GREEN' && !z.isFull);
-                if (nearestSafe) handleSelectZone(nearestSafe);
-              }}
-            >
-              <NavigationIcon color="#FFFFFF" size={14} />
-              <Text style={styles.findSafeParkingBtnText}>Navigate to Safe Parking</Text>
-            </TouchableOpacity>
-          </View>
         )}
 
-        {/* Violation Logged State */}
-        {violationGenerated && (
-          <View style={styles.violationCard}>
-            <View style={styles.warningHeader}>
-              <View style={[styles.warningIconCircle, { backgroundColor: '#7F1D1D' }]}>
-                <WarningIcon color="#FFFFFF" size={18} />
+        {/* ========================================================================= */}
+        {/* MODE 2: PARKING DIRECTORY (Full List View)                               */}
+        {/* ========================================================================= */}
+        {viewMode === 'DIRECTORY' && (
+          <View style={styles.tabSection}>
+            {/* Search Input */}
+            <View style={styles.searchCard}>
+              <View style={styles.searchBar}>
+                <SearchIcon color="#0B2559" size={17} />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search parking by name or street..."
+                  placeholderTextColor="#94A3B8"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearBtn}>
+                    <Text style={styles.clearBtnText}>Clear</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.warningTitle, { color: '#991B1B' }]}>
-                  VIOLATION LOGGED TO POLICE CONTROL ROOM
-                </Text>
-                <Text style={styles.warningSubtitle}>
-                  Tow-Away Event ID: PD-TOW-{Math.floor(1000 + Math.random() * 9000)}
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.violationDesc}>
-              10-minute maximum grace period exceeded. A possible obstruction event has been logged for municipal crane dispatch and e-challan verification.
-            </Text>
-            <TouchableOpacity
-              style={styles.dismissViolationBtn}
-              onPress={() => setViolationGenerated(false)}
-            >
-              <Text style={styles.dismissViolationBtnText}>Acknowledge Notice</Text>
-            </TouchableOpacity>
-          </View>
-        )}
 
-        {/* 4. Filter Pills */}
-        <View style={styles.filterBar}>
-          <TouchableOpacity
-            style={[styles.filterPill, activeFilter === 'ALL' && styles.filterPillActive]}
-            onPress={() => setActiveFilter('ALL')}
-          >
-            <Text style={[styles.filterPillText, activeFilter === 'ALL' && styles.filterPillTextActive]}>
-              All ({zones.length})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterPill, activeFilter === 'AVAILABLE' && styles.filterPillActiveGreen]}
-            onPress={() => setActiveFilter('AVAILABLE')}
-          >
-            <View style={[styles.filterDot, { backgroundColor: activeFilter === 'AVAILABLE' ? '#FFFFFF' : '#059669' }]} />
-            <Text style={[styles.filterPillText, activeFilter === 'AVAILABLE' && styles.filterPillTextActiveGreen]}>
-              Vacant ({zones.filter((z) => z.type === 'PARKING_GREEN' && !z.isFull).length})
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterPill, activeFilter === '2W' && styles.filterPillActive]}
-            onPress={() => setActiveFilter('2W')}
-          >
-            <MotorcycleIcon color={activeFilter === '2W' ? '#FFFFFF' : '#475569'} size={14} />
-            <Text style={[styles.filterPillText, activeFilter === '2W' && styles.filterPillTextActive]}>
-              Two-Wheeler
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterPill, activeFilter === '4W' && styles.filterPillActive]}
-            onPress={() => setActiveFilter('4W')}
-          >
-            <CarIcon color={activeFilter === '4W' ? '#FFFFFF' : '#475569'} size={15} />
-            <Text style={[styles.filterPillText, activeFilter === '4W' && styles.filterPillTextActive]}>
-              Four-Wheeler
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.filterPill, activeFilter === 'RESTRICTED' && styles.filterPillActiveRed]}
-            onPress={() => setActiveFilter('RESTRICTED')}
-          >
-            <ProhibitedIcon color={activeFilter === 'RESTRICTED' ? '#FFFFFF' : '#D31826'} size={13} strokeWidth={2.2} />
-            <Text style={[styles.filterPillText, activeFilter === 'RESTRICTED' && styles.filterPillTextActiveRed]}>
-              Tow-Away Zones ({zones.filter((z) => z.type === 'NO_PARKING_RED').length})
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 5. Interactive Map View */}
-        <MapView
-          ref={mapRef}
-          style={styles.mapArea}
-          provider={PROVIDER_GOOGLE}
-          initialRegion={{
-            latitude: 11.9338,
-            longitude: 79.831,
-            latitudeDelta: 0.03,
-            longitudeDelta: 0.03,
-          }}
-          showsUserLocation={true}
-          showsMyLocationButton={true}
-        >
-          {filteredZones.map((zone) => {
-            const isGreen = zone.type === 'PARKING_GREEN';
-            const markerColor = isGreen
-              ? zone.isFull
-                ? Colors.policeRed
-                : zone.occupiedSlots && zone.totalSlots && (zone.occupiedSlots / zone.totalSlots) > 0.7
-                ? '#F59E0B'
-                : Colors.parkingGreen
-              : Colors.policeRed;
-
-            return (
-              <Marker
-                key={zone.id}
-                coordinate={zone.coordinates}
-                title={zone.name}
-                pinColor={markerColor}
-                onPress={() => handleSelectZone(zone)}
-              />
-            );
-          })}
-
-          {filteredZones
-            .filter((z) => z.type === 'NO_PARKING_RED')
-            .map((zone) => (
-              <Circle
-                key={`circle-${zone.id}`}
-                center={zone.coordinates}
-                radius={250}
-                fillColor="rgba(211, 24, 38, 0.22)"
-                strokeColor="rgba(211, 24, 38, 0.8)"
-              />
-            ))}
-        </MapView>
-
-        {/* 6. Selected Parking Detail Card */}
-        {selectedZone && (
-          <View
-            style={[
-              styles.selectedCard,
-              selectedZone.type === 'NO_PARKING_RED' && styles.selectedCardRed,
-            ]}
-          >
-            <View style={styles.selectedHeaderRow}>
-              <View style={{ flex: 1 }}>
-                <View style={styles.zoneTypeBadgeRow}>
-                  <View
-                    style={[
-                      styles.zoneTypeBadge,
-                      selectedZone.type === 'PARKING_GREEN'
-                        ? styles.badgeGreen
-                        : styles.badgeRed,
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.indicatorDot,
-                        {
-                          backgroundColor:
-                            selectedZone.type === 'PARKING_GREEN' ? '#059669' : '#DC2626',
-                        },
-                      ]}
-                    />
-                    <Text
-                      style={[
-                        styles.zoneTypeBadgeText,
-                        selectedZone.type === 'PARKING_GREEN'
-                          ? styles.textGreen
-                          : styles.textRed,
-                      ]}
-                    >
-                      {selectedZone.type === 'PARKING_GREEN'
-                        ? 'AUTHORIZED CIVIC PARKING'
-                        : 'STRICT NO-PARKING / TOW-AWAY'}
-                    </Text>
-                  </View>
-                  <Text style={styles.zoneAreaText}>{selectedZone.area}</Text>
-                </View>
-
-                <Text style={styles.selectedZoneName}>{selectedZone.name}</Text>
-                <View style={styles.selectedLocationRow}>
-                  <LocationPinIcon color="#CBD5E1" size={13} />
-                  <Text style={styles.selectedStreetName}>{selectedZone.streetName}</Text>
-                </View>
-              </View>
-            </View>
-
-            {selectedZone.type === 'NO_PARKING_RED' ? (
-              <View style={styles.redDetailsBox}>
-                <View style={styles.redDetailsHeader}>
-                  <WarningIcon color="#FCA5A5" size={14} />
-                  <Text style={styles.redDetailsTitle}>Police Enforcement Advisory</Text>
-                </View>
-                <Text style={styles.redDetailsText}>{selectedZone.enforcementNotes}</Text>
+              {/* Filter Pills */}
+              <View style={styles.filterBar}>
                 <TouchableOpacity
-                  style={styles.redirectActionBtn}
-                  onPress={() => {
-                    const nearest = getNearestAvailableParking(selectedZone.coordinates);
-                    if (nearest) handleSelectZone(nearest);
-                  }}
+                  style={[styles.filterPill, activeFilter === 'ALL' && styles.filterPillActive]}
+                  onPress={() => setActiveFilter('ALL')}
                 >
-                  <NavigationIcon color="#FFFFFF" size={14} />
-                  <Text style={styles.redirectActionBtnText}>
-                    Find Nearest Safe Parking
+                  <Text style={[styles.filterPillText, activeFilter === 'ALL' && styles.filterPillTextActive]}>
+                    All ({greenZones.length})
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterPill, activeFilter === 'AVAILABLE' && styles.filterPillActiveGreen]}
+                  onPress={() => setActiveFilter('AVAILABLE')}
+                >
+                  <View style={[styles.filterDot, { backgroundColor: activeFilter === 'AVAILABLE' ? '#FFFFFF' : '#059669' }]} />
+                  <Text style={[styles.filterPillText, activeFilter === 'AVAILABLE' && styles.filterPillTextActiveGreen]}>
+                    Vacant Only ({greenZones.filter(z => !z.isFull).length})
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterPill, activeFilter === '2W' && styles.filterPillActive]}
+                  onPress={() => setActiveFilter('2W')}
+                >
+                  <MotorcycleIcon color={activeFilter === '2W' ? '#FFFFFF' : '#475569'} size={14} />
+                  <Text style={[styles.filterPillText, activeFilter === '2W' && styles.filterPillTextActive]}>
+                    Two-Wheeler
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.filterPill, activeFilter === '4W' && styles.filterPillActive]}
+                  onPress={() => setActiveFilter('4W')}
+                >
+                  <CarIcon color={activeFilter === '4W' ? '#FFFFFF' : '#475569'} size={15} />
+                  <Text style={[styles.filterPillText, activeFilter === '4W' && styles.filterPillTextActive]}>
+                    Four-Wheeler
                   </Text>
                 </TouchableOpacity>
               </View>
-            ) : (
-              <>
-                {/* Availability Progress Meter */}
-                <View style={styles.occupancyMeterBox}>
-                  <View style={styles.meterHeader}>
-                    <Text style={styles.meterLabel}>BAY OCCUPANCY & AVAILABILITY</Text>
-                    <View style={styles.meterStatusBadge}>
+            </View>
+
+            {/* List of Facilities */}
+            <View style={styles.directoryList}>
+              {filteredGreenZones.map((zone) => {
+                const vacant = zone.isFull ? 0 : (zone.totalSlots! - zone.occupiedSlots!);
+                const isSelected = selectedZone?.id === zone.id;
+
+                return (
+                  <View
+                    key={zone.id}
+                    style={[
+                      styles.directoryCard,
+                      isSelected && styles.directoryCardSelected,
+                    ]}
+                  >
+                    <View style={styles.directoryTopRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.directoryTitle}>{zone.name}</Text>
+                        <View style={styles.directoryLocationRow}>
+                          <LocationPinIcon color="#64748B" size={12} />
+                          <Text style={styles.directorySubText}>{zone.streetName} • {zone.area}</Text>
+                        </View>
+                      </View>
                       <View
                         style={[
-                          styles.statusDot,
+                          styles.statusBadge,
+                          zone.isFull
+                            ? styles.statusBadgeFull
+                            : vacant <= 5
+                            ? styles.statusBadgeAmber
+                            : styles.statusBadgeAvailable,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.statusBadgeText,
+                            zone.isFull
+                              ? styles.statusTextFull
+                              : vacant <= 5
+                              ? styles.statusTextAmber
+                              : styles.statusTextAvailable,
+                          ]}
+                        >
+                          {zone.isFull ? 'FULL' : `${vacant} VACANT`}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Progress Bar */}
+                    <View style={styles.directoryProgressTrack}>
+                      <View
+                        style={[
+                          styles.directoryProgressFill,
                           {
-                            backgroundColor: selectedZone.isFull
+                            width: `${Math.min(100, Math.round((zone.occupiedSlots! / zone.totalSlots!) * 100))}%`,
+                            backgroundColor: zone.isFull
                               ? '#EF4444'
-                              : (selectedZone.occupiedSlots! / selectedZone.totalSlots!) > 0.7
+                              : (zone.occupiedSlots! / zone.totalSlots!) > 0.7
                               ? '#F59E0B'
                               : '#10B981',
                           },
                         ]}
                       />
-                      <Text
-                        style={[
-                          styles.meterStatus,
-                          selectedZone.isFull
-                            ? { color: '#EF4444' }
-                            : (selectedZone.occupiedSlots! / selectedZone.totalSlots!) > 0.7
-                            ? { color: '#F59E0B' }
-                            : { color: '#10B981' },
-                        ]}
+                    </View>
+
+                    <View style={styles.directoryMetaRow}>
+                      <Text style={styles.directoryMetaText}>📍 {zone.distanceKm} km</Text>
+                      <Text style={styles.directoryMetaDivider}>•</Text>
+                      <WalkIcon color="#64748B" size={12} />
+                      <Text style={styles.directoryMetaText}> {zone.walkingTimeMin} min walk</Text>
+                      <Text style={styles.directoryMetaDivider}>•</Text>
+                      <Text style={styles.directoryMetaText}>{zone.hourlyRate}</Text>
+                      <Text style={styles.directoryMetaDivider}>•</Text>
+                      <Text style={styles.directoryMetaText}>{zone.vehicleTypes?.join(', ')}</Text>
+                    </View>
+
+                    <View style={styles.directoryActionsRow}>
+                      <TouchableOpacity
+                        style={styles.directoryMapBtn}
+                        onPress={() => {
+                          handleSelectZone(zone);
+                          setViewMode('MAP');
+                        }}
                       >
-                        {selectedZone.isFull
-                          ? 'FULL'
-                          : (selectedZone.occupiedSlots! / selectedZone.totalSlots!) > 0.7
-                          ? 'FILLING FAST'
-                          : 'AVAILABLE'}
-                      </Text>
+                        <MapIcon color="#0B2559" size={13} />
+                        <Text style={styles.directoryMapBtnText}>View on Radar</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.directoryNavBtn}
+                        onPress={() =>
+                          Alert.alert('Navigation Initialized', `Route to ${zone.name} loaded.`)
+                        }
+                      >
+                        <NavigationIcon color="#FFFFFF" size={13} />
+                        <Text style={styles.directoryNavBtnText}>Get Directions</Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
+                );
+              })}
 
-                  <View style={styles.progressBarTrack}>
-                    <View
-                      style={[
-                        styles.progressBarFill,
-                        {
-                          width: `${Math.min(
-                            100,
-                            Math.round((selectedZone.occupiedSlots! / selectedZone.totalSlots!) * 100)
-                          )}%`,
-                          backgroundColor: selectedZone.isFull
-                            ? '#EF4444'
-                            : (selectedZone.occupiedSlots! / selectedZone.totalSlots!) > 0.7
-                            ? '#F59E0B'
-                            : '#10B981',
-                        },
-                      ]}
-                    />
-                  </View>
-
-                  <View style={styles.slotsCountRow}>
-                    <Text style={styles.slotsVacantHighlight}>
-                      {selectedZone.isFull
-                        ? '0 SPACES VACANT'
-                        : `${selectedZone.totalSlots! - selectedZone.occupiedSlots!} VACANT SPACES`}
-                    </Text>
-                    <Text style={styles.slotsTotalText}>
-                      ({selectedZone.occupiedSlots} occupied of {selectedZone.totalSlots} total)
-                    </Text>
-                  </View>
+              {filteredGreenZones.length === 0 && (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyStateTitle}>No parking facilities found</Text>
+                  <Text style={styles.emptyStateSub}>Try clearing the search query or changing filters.</Text>
                 </View>
-
-                {/* Statistics Grid */}
-                <View style={styles.statsGrid}>
-                  <View style={styles.statCell}>
-                    <Text style={styles.statCellLabel}>DISTANCE</Text>
-                    <Text style={styles.statCellValue}>{selectedZone.distanceKm} km</Text>
-                  </View>
-                  <View style={styles.statCell}>
-                    <Text style={styles.statCellLabel}>WALK TIME</Text>
-                    <View style={styles.statIconRow}>
-                      <WalkIcon color="#FFFFFF" size={12} />
-                      <Text style={styles.statCellValue}> {selectedZone.walkingTimeMin} min</Text>
-                    </View>
-                  </View>
-                  <View style={styles.statCell}>
-                    <Text style={styles.statCellLabel}>TARIFF</Text>
-                    <Text style={styles.statCellValue}>{selectedZone.hourlyRate}</Text>
-                  </View>
-                  <View style={styles.statCell}>
-                    <Text style={styles.statCellLabel}>VEHICLES</Text>
-                    <Text style={styles.statCellValue}>
-                      {selectedZone.vehicleTypes?.join(', ') || '2W / 4W'}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Smart Kerb Diagram */}
-                <View style={styles.kerbVisualBox}>
-                  <View style={styles.kerbGreen}>
-                    <View style={styles.kerbTitleRow}>
-                      <View style={[styles.kerbDot, { backgroundColor: '#10B981' }]} />
-                      <Text style={styles.kerbTitle}>AUTHORIZED BAY</Text>
-                    </View>
-                    <Text style={styles.kerbSub}>
-                      {selectedZone.isFull
-                        ? '0'
-                        : selectedZone.totalSlots! - selectedZone.occupiedSlots!}{' '}
-                      SPACES VACANT
-                    </Text>
-                  </View>
-                  <View style={styles.kerbRoad}>
-                    <View style={styles.dash} />
-                    <View style={styles.dash} />
-                  </View>
-                  <View style={styles.kerbRed}>
-                    <View style={styles.kerbTitleRow}>
-                      <View style={[styles.kerbDot, { backgroundColor: '#EF4444' }]} />
-                      <Text style={styles.kerbTitle}>NO-PARKING KERB</Text>
-                    </View>
-                    <Text style={styles.kerbSub}>ZERO TOLERANCE</Text>
-                  </View>
-                </View>
-
-                {/* Smart Redirection Notice when full */}
-                {selectedZone.isFull && redirectZone && (
-                  <View style={styles.redirectBanner}>
-                    <View style={styles.redirectHeader}>
-                      <RefreshIcon color="#F59E0B" size={16} />
-                      <Text style={styles.redirectTitle}>
-                        Smart Redirection: Nearest Available Alternative
-                      </Text>
-                    </View>
-                    <Text style={styles.redirectDestination}>
-                      {redirectZone.name}
-                    </Text>
-                    <Text style={styles.redirectSub}>
-                      {redirectZone.totalSlots! - redirectZone.occupiedSlots!} spaces vacant •{' '}
-                      {redirectZone.distanceKm} km away
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.actionBtnRedirect}
-                      onPress={() => handleSelectZone(redirectZone)}
-                    >
-                      <NavigationIcon color="#FFF" size={14} />
-                      <Text style={styles.actionBtnText}>
-                        Divert to {redirectZone.name}
-                      </Text>
-                      <ArrowRightIcon color="#FFF" size={14} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {!selectedZone.isFull && (
-                  <TouchableOpacity
-                    style={styles.actionBtnPrimary}
-                    onPress={() =>
-                      Alert.alert(
-                        'Directions Initialized',
-                        `Turn-by-turn route to ${selectedZone.name} loaded.\n\nPuducherry Traffic Police monitors sensor bay status in real-time.`
-                      )
-                    }
-                  >
-                    <NavigationIcon color="#FFF" size={15} />
-                    <Text style={styles.actionBtnText}>Get Navigation Directions</Text>
-                    <ArrowRightIcon color="#FFF" size={15} />
-                  </TouchableOpacity>
-                )}
-              </>
-            )}
+              )}
+            </View>
           </View>
         )}
 
-        {/* 7. Nearby Parking List with Rich Cards */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>
-            Puducherry Authorized Parking Directory ({filteredZones.length})
-          </Text>
-        </View>
-
-        {filteredZones.map((zone) => {
-          const isGreen = zone.type === 'PARKING_GREEN';
-          const vacantSpots = isGreen ? (zone.totalSlots! - zone.occupiedSlots!) : 0;
-          const isSelected = selectedZone?.id === zone.id;
-
-          return (
-            <TouchableOpacity
-              key={zone.id}
-              style={[
-                styles.zoneListItem,
-                isSelected && styles.zoneListItemActive,
-                !isGreen && styles.zoneListItemRed,
-              ]}
-              onPress={() => handleSelectZone(zone)}
-              activeOpacity={0.8}
-            >
-              <View style={styles.zoneListLeft}>
-                <View style={styles.zoneNameRow}>
-                  <Text style={styles.zoneListName}>{zone.name}</Text>
-                  {!isGreen && (
-                    <View style={styles.towBadge}>
-                      <Text style={styles.towBadgeText}>TOW-AWAY</Text>
-                    </View>
-                  )}
+        {/* ========================================================================= */}
+        {/* MODE 3: ENFORCEMENT & VIOLATION MANAGEMENT                                */}
+        {/* ========================================================================= */}
+        {viewMode === 'ENFORCEMENT' && (
+          <View style={styles.tabSection}>
+            {/* Active Warning Countdown State */}
+            {warningTimer !== null && (
+              <View style={styles.warningCard}>
+                <View style={styles.warningHeader}>
+                  <View style={styles.warningIconCircle}>
+                    <WarningIcon color="#FFFFFF" size={18} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.warningTitle}>RESTRICTED NO-PARKING ZONE DETECTED</Text>
+                    <Text style={styles.warningSubtitle}>
+                      Puducherry Traffic Police • Zero Tolerance Tow-Away Zone
+                    </Text>
+                  </View>
                 </View>
 
-                <View style={styles.zoneLocationRow}>
-                  <LocationPinIcon color="#64748B" size={12} />
-                  <Text style={styles.zoneListSub}>
-                    {zone.streetName} • {zone.area}
+                <Text style={styles.warningDesc}>
+                  Your GPS is within <Text style={{ fontWeight: '800' }}>{activeWarningZone || 'Rock Beach Promenade'}</Text>.
+                  Parking is strictly prohibited here. Move your vehicle to an authorized parking bay immediately.
+                </Text>
+
+                <View style={styles.timerBox}>
+                  <Text style={styles.timerLabel}>COUNTDOWN BEFORE TOW-AWAY VIOLATION NOTICE:</Text>
+                  <Text style={styles.timerValue}>{formatTime(warningTimer)}</Text>
+                  <Text style={styles.timerSubNotice}>
+                    Automated ANPR and Traffic Warden dispatch triggered at 00:00
                   </Text>
                 </View>
 
-                <View style={styles.zoneTagsRow}>
-                  <Text style={styles.zoneTagText}>{zone.distanceKm} km</Text>
-                  {isGreen && (
-                    <>
-                      <Text style={styles.zoneTagDivider}>•</Text>
-                      <WalkIcon color="#64748B" size={11} />
-                      <Text style={styles.zoneTagText}> {zone.walkingTimeMin} min walk</Text>
-                      <Text style={styles.zoneTagDivider}>•</Text>
-                      <Text style={styles.zoneTagText}>{zone.hourlyRate}</Text>
-                    </>
-                  )}
-                </View>
+                <TouchableOpacity
+                  style={styles.findSafeParkingBtn}
+                  onPress={() => {
+                    const nearestSafe = zones.find((z) => z.type === 'PARKING_GREEN' && !z.isFull);
+                    if (nearestSafe) {
+                      handleSelectZone(nearestSafe);
+                      setViewMode('MAP');
+                    }
+                  }}
+                >
+                  <NavigationIcon color="#FFFFFF" size={14} />
+                  <Text style={styles.findSafeParkingBtnText}>Navigate to Safe Parking</Text>
+                </TouchableOpacity>
               </View>
+            )}
 
-              <View style={styles.zoneListRight}>
-                {isGreen ? (
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      zone.isFull
-                        ? styles.statusBadgeFull
-                        : vacantSpots <= 5
-                        ? styles.statusBadgeAmber
-                        : styles.statusBadgeAvailable,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusBadgeText,
-                        zone.isFull
-                          ? styles.statusTextFull
-                          : vacantSpots <= 5
-                          ? styles.statusTextAmber
-                          : styles.statusTextAvailable,
-                      ]}
-                    >
-                      {zone.isFull ? 'FULL' : `${vacantSpots} LEFT`}
+            {/* Violation Logged State */}
+            {violationGenerated && (
+              <View style={styles.violationCard}>
+                <View style={styles.warningHeader}>
+                  <View style={[styles.warningIconCircle, { backgroundColor: '#7F1D1D' }]}>
+                    <WarningIcon color="#FFFFFF" size={18} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.warningTitle, { color: '#991B1B' }]}>
+                      VIOLATION LOGGED TO POLICE CONTROL ROOM
+                    </Text>
+                    <Text style={styles.warningSubtitle}>
+                      Tow-Away Event ID: PD-TOW-{Math.floor(1000 + Math.random() * 9000)}
                     </Text>
                   </View>
-                ) : (
-                  <View style={styles.redCirclePin}>
-                    <ProhibitedIcon color="#DC2626" size={15} strokeWidth={2.2} />
-                  </View>
-                )}
+                </View>
+                <Text style={styles.violationDesc}>
+                  10-minute maximum grace period exceeded. A possible obstruction event has been logged for municipal crane dispatch and e-challan verification.
+                </Text>
+                <TouchableOpacity
+                  style={styles.dismissViolationBtn}
+                  onPress={() => setViolationGenerated(false)}
+                >
+                  <Text style={styles.dismissViolationBtnText}>Acknowledge Notice</Text>
+                </TouchableOpacity>
               </View>
-            </TouchableOpacity>
-          );
-        })}
+            )}
 
-        {filteredZones.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateTitle}>No parking zones matching "{searchQuery}"</Text>
-            <Text style={styles.emptyStateSub}>Try searching Rock Beach, White Town, or Mission Street</Text>
-            <TouchableOpacity
-              style={styles.emptyStateResetBtn}
-              onPress={() => {
-                setSearchQuery('');
-                setActiveFilter('ALL');
-              }}
-            >
-              <Text style={styles.emptyStateResetText}>Reset Filters</Text>
-            </TouchableOpacity>
+            {/* Tow-Away Corridors Directory */}
+            <View style={styles.enforcementCard}>
+              <View style={styles.enforcementCardHeader}>
+                <ProhibitedIcon color="#D31826" size={16} strokeWidth={2.2} />
+                <Text style={styles.enforcementCardTitle}>STRICT TOW-AWAY CORRIDORS (ZERO TOLERANCE)</Text>
+              </View>
+
+              {redZones.map((zone) => (
+                <View key={zone.id} style={styles.redZoneCard}>
+                  <View style={styles.redZoneHeaderRow}>
+                    <Text style={styles.redZoneName}>{zone.name}</Text>
+                    <View style={styles.redTowBadge}>
+                      <Text style={styles.redTowBadgeText}>TOW-AWAY</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.redZoneStreet}>📍 {zone.streetName} • {zone.area}</Text>
+                  <Text style={styles.redZoneNotes}>{zone.enforcementNotes}</Text>
+                </View>
+              ))}
+
+              <TouchableOpacity
+                style={styles.testWarningActionBtn}
+                onPress={triggerDemoWarning}
+              >
+                <WarningIcon color="#D31826" size={15} />
+                <Text style={styles.testWarningActionBtnText}>Simulate 10-Minute Warning Trigger</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Smart Kerb Diagram */}
+            <View style={styles.kerbVisualBox}>
+              <View style={styles.kerbGreen}>
+                <View style={styles.kerbTitleRow}>
+                  <View style={[styles.kerbDot, { backgroundColor: '#10B981' }]} />
+                  <Text style={styles.kerbTitle}>AUTHORIZED BAY</Text>
+                </View>
+                <Text style={styles.kerbSub}>LEGAL PARKING CORRIDOR</Text>
+              </View>
+              <View style={styles.kerbRoad}>
+                <View style={styles.dash} />
+                <View style={styles.dash} />
+              </View>
+              <View style={styles.kerbRed}>
+                <View style={styles.kerbTitleRow}>
+                  <View style={[styles.kerbDot, { backgroundColor: '#EF4444' }]} />
+                  <Text style={styles.kerbTitle}>NO-PARKING KERB</Text>
+                </View>
+                <Text style={styles.kerbSub}>CRANE TOW-AWAY ZONE</Text>
+              </View>
+            </View>
+
+            {/* Helpline Banner */}
+            <View style={styles.helplineBanner}>
+              <PoliceShieldIcon color="#0B2559" size={18} />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.helplineTitle}>PUDUCHERRY TRAFFIC POLICE CONTROL ROOM</Text>
+                <Text style={styles.helplineSub}>Helpline: 103 / 0413-2231310 • Traffic Advisory Active</Text>
+              </View>
+            </View>
           </View>
         )}
 
@@ -899,30 +1096,21 @@ const styles = StyleSheet.create({
   // 1. Command Banner
   commandBanner: {
     backgroundColor: '#071630',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 14,
-    borderLeftWidth: 4,
-    borderLeftColor: '#D31826',
-    borderTopWidth: 1,
-    borderRightWidth: 1,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderColor: '#1E293B',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 3,
   },
   commandTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
   },
   bannerLogo: {
-    width: 44,
-    height: 46,
-    marginRight: 12,
+    width: 38,
+    height: 40,
+    marginRight: 10,
   },
   commandTextCol: {
     flex: 1,
@@ -967,63 +1155,77 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // 2. Search & Location Card
-  searchCard: {
+  // 2. Mode Switcher (Segmented Control)
+  modeSwitcherContainer: {
+    flexDirection: 'row',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 1,
+    padding: 6,
+    borderBottomWidth: 1,
     borderColor: '#E2E8F0',
-    padding: 12,
-    marginBottom: 14,
+    gap: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
     shadowRadius: 3,
     elevation: 2,
   },
-  searchBar: {
+  modeTab: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    paddingVertical: 8,
     borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    marginBottom: 10,
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: '#E2E8F0',
+    gap: 5,
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 13,
-    color: '#0F172A',
-    marginLeft: 8,
-    fontWeight: '500',
+  modeTabActive: {
+    backgroundColor: '#0B2559',
+    borderColor: '#0B2559',
   },
-  clearBtn: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    backgroundColor: '#E2E8F0',
-    borderRadius: 4,
+  modeTabActiveRed: {
+    backgroundColor: '#D31826',
+    borderColor: '#D31826',
   },
-  clearBtnText: {
-    color: '#64748B',
+  modeTabText: {
     fontSize: 11,
     fontWeight: '700',
+    color: '#64748B',
   },
-  quickChipsContainer: {
+  modeTabTextActive: {
+    color: '#FFFFFF',
+  },
+
+  tabSection: {
+    width: '100%',
+  },
+
+  // Destination Bar
+  destinationBar: {
+    marginBottom: 10,
+  },
+  barLabel: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  quickChipsScroll: {
     flexDirection: 'row',
-    paddingBottom: 10,
     gap: 6,
   },
   quickChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 10,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 11,
     paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: '#CBD5E1',
     gap: 5,
   },
   quickChipText: {
@@ -1031,214 +1233,167 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
-  searchActionRow: {
+
+  // Location Row
+  locationBarRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     gap: 8,
+    marginBottom: 12,
   },
-  locationBtn: {
+  locationBarBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 9,
     backgroundColor: '#EFF6FF',
+    paddingVertical: 9,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#BFDBFE',
     gap: 6,
   },
-  locationBtnText: {
+  locationBarBtnText: {
     color: '#0B2559',
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '700',
   },
-  demoWarningBtn: {
+  quickWarnBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 9,
-    paddingHorizontal: 12,
     backgroundColor: '#FEF2F2',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#FCA5A5',
     gap: 5,
   },
-  demoWarningBtnText: {
+  quickWarnBtnText: {
     color: '#D31826',
-    fontSize: 11.5,
-    fontWeight: '700',
-  },
-
-  // 3. Warning Card
-  warningCard: {
-    backgroundColor: '#FEF2F2',
-    borderWidth: 2,
-    borderColor: '#D31826',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 14,
-    shadowColor: '#D31826',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 5,
-    elevation: 3,
-  },
-  warningHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  warningIconCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#D31826',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  warningTitle: {
-    color: '#D31826',
-    fontSize: 12.5,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-  },
-  warningSubtitle: {
-    color: '#991B1B',
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  warningDesc: {
-    color: '#7F1D1D',
-    fontSize: 11.5,
-    lineHeight: 17,
-    marginBottom: 10,
-  },
-  timerBox: {
-    backgroundColor: '#D31826',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  timerLabel: {
-    color: '#FECACA',
-    fontSize: 9.5,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    marginBottom: 3,
-  },
-  timerValue: {
-    color: '#FFFFFF',
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  timerSubNotice: {
-    color: '#FEE2E2',
-    fontSize: 9,
-    marginTop: 3,
-  },
-  findSafeParkingBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0B2559',
-    paddingVertical: 10,
-    borderRadius: 8,
-    gap: 6,
-  },
-  findSafeParkingBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  violationCard: {
-    backgroundColor: '#FEF2F2',
-    borderWidth: 2,
-    borderColor: '#7F1D1D',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 14,
-  },
-  violationDesc: {
-    color: '#7F1D1D',
-    fontSize: 11.5,
-    lineHeight: 17,
-    marginBottom: 10,
-  },
-  dismissViolationBtn: {
-    backgroundColor: '#7F1D1D',
-    paddingVertical: 9,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  dismissViolationBtnText: {
-    color: '#FFF',
-    fontSize: 11.5,
-    fontWeight: '700',
-  },
-
-  // 4. Filter Bar
-  filterBar: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 12,
-  },
-  filterPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    gap: 5,
-  },
-  filterPillActive: {
-    backgroundColor: '#0B2559',
-    borderColor: '#0B2559',
-  },
-  filterPillActiveGreen: {
-    backgroundColor: '#059669',
-    borderColor: '#059669',
-  },
-  filterPillActiveRed: {
-    backgroundColor: '#D31826',
-    borderColor: '#D31826',
-  },
-  filterPillText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#475569',
-  },
-  filterPillTextActive: {
-    color: '#FFFFFF',
-  },
-  filterPillTextActiveGreen: {
-    color: '#FFFFFF',
-  },
-  filterPillTextActiveRed: {
-    color: '#FFFFFF',
-  },
-  filterDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
   },
 
-  // 5. Map Component
+  // Map
   mapArea: {
-    height: 310,
+    height: 360,
     borderRadius: 14,
     marginBottom: 14,
   },
 
-  // 6. Selected Zone Card
+  // Horizontal Carousel
+  carouselSection: {
+    marginBottom: 16,
+  },
+  carouselHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  carouselTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748B',
+    letterSpacing: 0.5,
+  },
+  carouselViewAllText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1D4ED8',
+  },
+  carouselCardsScroll: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingBottom: 4,
+  },
+  carouselCard: {
+    width: 250,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  carouselCardSelected: {
+    borderColor: '#0B2559',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 2,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  cardTitle: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginRight: 6,
+  },
+  cardBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: 4,
+  },
+  cardBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+  },
+  cardSubText: {
+    fontSize: 10.5,
+    color: '#64748B',
+    marginBottom: 6,
+  },
+  cardProgressTrack: {
+    height: 5,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  cardProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  cardMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cardMetaText: {
+    fontSize: 9.5,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  cardMetaDivider: {
+    color: '#CBD5E1',
+    marginHorizontal: 3,
+    fontSize: 9,
+  },
+  cardDirectionsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0B2559',
+    paddingVertical: 7,
+    borderRadius: 6,
+    gap: 5,
+  },
+  cardDirectionsBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
+  // Selected Card Details
   selectedCard: {
     backgroundColor: '#0B2559',
     borderRadius: 14,
@@ -1276,6 +1431,9 @@ const styles = StyleSheet.create({
   badgeGreen: {
     backgroundColor: 'rgba(16, 185, 129, 0.2)',
   },
+  badgeAmber: {
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+  },
   badgeRed: {
     backgroundColor: 'rgba(239, 68, 68, 0.3)',
   },
@@ -1291,6 +1449,9 @@ const styles = StyleSheet.create({
   },
   textGreen: {
     color: '#34D399',
+  },
+  textAmber: {
+    color: '#F59E0B',
   },
   textRed: {
     color: '#FCA5A5',
@@ -1455,69 +1616,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // Smart Kerb visual
-  kerbVisualBox: {
-    backgroundColor: '#071630',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: '#1E293B',
-  },
-  kerbGreen: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderWidth: 1,
-    borderColor: '#10B981',
-    padding: 6,
-    borderRadius: 6,
-    flex: 1,
-    alignItems: 'center',
-  },
-  kerbRed: {
-    backgroundColor: 'rgba(211, 24, 38, 0.2)',
-    borderWidth: 1,
-    borderColor: '#EF4444',
-    padding: 6,
-    borderRadius: 6,
-    flex: 1,
-    alignItems: 'center',
-  },
-  kerbTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  kerbDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  kerbRoad: {
-    width: 24,
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    height: 36,
-  },
-  dash: {
-    width: 2,
-    height: 8,
-    backgroundColor: '#F59E0B',
-  },
-  kerbTitle: {
-    color: '#FFF',
-    fontSize: 8.5,
-    fontWeight: '900',
-  },
-  kerbSub: {
-    color: '#CBD5E1',
-    fontSize: 7.5,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-
   // Smart Redirection Banner
   redirectBanner: {
     backgroundColor: 'rgba(245, 158, 11, 0.15)',
@@ -1579,100 +1677,461 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 
-  // 7. Directory List
-  sectionHeaderRow: {
-    marginBottom: 10,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#1E293B',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  zoneListItem: {
+  // Directory Styles
+  searchCard: {
     backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    marginBottom: 14,
+  },
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 13,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+  clearBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 4,
+  },
+  clearBtnText: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  filterBar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  filterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    gap: 5,
+  },
+  filterPillActive: {
+    backgroundColor: '#0B2559',
+    borderColor: '#0B2559',
+  },
+  filterPillActiveGreen: {
+    backgroundColor: '#059669',
+    borderColor: '#059669',
+  },
+  filterPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  filterPillTextActive: {
+    color: '#FFFFFF',
+  },
+  filterPillTextActiveGreen: {
+    color: '#FFFFFF',
+  },
+  filterDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  directoryList: {
+    gap: 10,
+  },
+  directoryCard: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
+    padding: 14,
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 2,
   },
-  zoneListItemActive: {
+  directoryCardSelected: {
     borderColor: '#0B2559',
     backgroundColor: '#F8FAFC',
     borderWidth: 2,
   },
-  zoneListItemRed: {
-    borderColor: '#FEE2E2',
-    backgroundColor: '#FFFDFD',
-  },
-  zoneListLeft: {
-    flex: 1,
-  },
-  zoneNameRow: {
+  directoryTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 2,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 6,
   },
-  zoneListName: {
-    fontSize: 14,
+  directoryTitle: {
+    fontSize: 15,
     fontWeight: '800',
     color: '#0F172A',
-    marginRight: 6,
+    marginBottom: 2,
   },
-  towBadge: {
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: '#FCA5A5',
-  },
-  towBadgeText: {
-    color: '#991B1B',
-    fontSize: 8.5,
-    fontWeight: '800',
-  },
-  zoneLocationRow: {
+  directoryLocationRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginBottom: 4,
   },
-  zoneListSub: {
+  directorySubText: {
     fontSize: 11,
-    color: '#475569',
+    color: '#64748B',
     fontWeight: '500',
   },
-  zoneTagsRow: {
+  directoryProgressTrack: {
+    height: 6,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginVertical: 8,
+  },
+  directoryProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  directoryMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 12,
   },
-  zoneTagText: {
-    fontSize: 10,
-    color: '#64748B',
+  directoryMetaText: {
+    fontSize: 10.5,
+    color: '#475569',
     fontWeight: '600',
   },
-  zoneTagDivider: {
+  directoryMetaDivider: {
     color: '#CBD5E1',
     marginHorizontal: 4,
     fontSize: 10,
   },
-  zoneListRight: {
-    marginLeft: 10,
+  directoryActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
   },
+  directoryMapBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 9,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    gap: 5,
+  },
+  directoryMapBtnText: {
+    color: '#0B2559',
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  directoryNavBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0B2559',
+    paddingVertical: 9,
+    borderRadius: 8,
+    gap: 5,
+  },
+  directoryNavBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+
+  // Enforcement View
+  enforcementCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    marginBottom: 14,
+  },
+  enforcementCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  enforcementCardTitle: {
+    fontSize: 11.5,
+    fontWeight: '800',
+    color: '#D31826',
+    letterSpacing: 0.5,
+  },
+  redZoneCard: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#D31826',
+  },
+  redZoneHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  redZoneName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#991B1B',
+  },
+  redTowBadge: {
+    backgroundColor: '#D31826',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  redTowBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 8.5,
+    fontWeight: '800',
+  },
+  redZoneStreet: {
+    fontSize: 10.5,
+    color: '#7F1D1D',
+    marginBottom: 4,
+  },
+  redZoneNotes: {
+    fontSize: 10,
+    color: '#B91C1C',
+    lineHeight: 14,
+  },
+  testWarningActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    marginTop: 6,
+    gap: 6,
+  },
+  testWarningActionBtnText: {
+    color: '#D31826',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+
+  // Smart Kerb visual
+  kerbVisualBox: {
+    backgroundColor: '#071630',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#1E293B',
+  },
+  kerbGreen: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: '#10B981',
+    padding: 8,
+    borderRadius: 6,
+    flex: 1,
+    alignItems: 'center',
+  },
+  kerbRed: {
+    backgroundColor: 'rgba(211, 24, 38, 0.2)',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+    padding: 8,
+    borderRadius: 6,
+    flex: 1,
+    alignItems: 'center',
+  },
+  kerbTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  kerbDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  kerbRoad: {
+    width: 24,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    height: 36,
+  },
+  dash: {
+    width: 2,
+    height: 8,
+    backgroundColor: '#F59E0B',
+  },
+  kerbTitle: {
+    color: '#FFF',
+    fontSize: 8.5,
+    fontWeight: '900',
+  },
+  kerbSub: {
+    color: '#CBD5E1',
+    fontSize: 7.5,
+    fontWeight: '700',
+    marginTop: 2,
+  },
+
+  // Helpline
+  helplineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  helplineTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#0B2559',
+    letterSpacing: 0.3,
+  },
+  helplineSub: {
+    fontSize: 9.5,
+    color: '#1E40AF',
+    marginTop: 1,
+  },
+
+  // Warning Cards
+  warningCard: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 2,
+    borderColor: '#D31826',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
+  },
+  warningHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  warningIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#D31826',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  warningTitle: {
+    color: '#D31826',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  warningSubtitle: {
+    color: '#991B1B',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  warningDesc: {
+    color: '#7F1D1D',
+    fontSize: 11.5,
+    lineHeight: 17,
+    marginBottom: 10,
+  },
+  timerBox: {
+    backgroundColor: '#D31826',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  timerLabel: {
+    color: '#FECACA',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 3,
+  },
+  timerValue: {
+    color: '#FFFFFF',
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  timerSubNotice: {
+    color: '#FEE2E2',
+    fontSize: 9,
+    marginTop: 3,
+  },
+  findSafeParkingBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0B2559',
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+  },
+  findSafeParkingBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  violationCard: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 2,
+    borderColor: '#7F1D1D',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
+  },
+  violationDesc: {
+    color: '#7F1D1D',
+    fontSize: 11.5,
+    lineHeight: 17,
+    marginBottom: 10,
+  },
+  dismissViolationBtn: {
+    backgroundColor: '#7F1D1D',
+    paddingVertical: 9,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  dismissViolationBtnText: {
+    color: '#FFF',
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+
+  // Badges
   statusBadge: {
-    paddingHorizontal: 9,
-    paddingVertical: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: 6,
     alignItems: 'center',
   },
@@ -1692,7 +2151,7 @@ const styles = StyleSheet.create({
     borderColor: '#FECACA',
   },
   statusBadgeText: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '900',
     letterSpacing: 0.3,
   },
@@ -1704,14 +2163,6 @@ const styles = StyleSheet.create({
   },
   statusTextFull: {
     color: '#DC2626',
-  },
-  redCirclePin: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#FEE2E2',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 
   // Empty State
@@ -1732,17 +2183,5 @@ const styles = StyleSheet.create({
   emptyStateSub: {
     fontSize: 12,
     color: '#64748B',
-    marginBottom: 14,
-  },
-  emptyStateResetBtn: {
-    backgroundColor: '#0B2559',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 6,
-  },
-  emptyStateResetText: {
-    color: '#FFF',
-    fontSize: 11,
-    fontWeight: '700',
   },
 });

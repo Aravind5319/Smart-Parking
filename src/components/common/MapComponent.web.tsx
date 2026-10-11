@@ -1,31 +1,167 @@
-import React, { forwardRef, useImperativeHandle, useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useState, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { LayersIcon, MapIcon, ProhibitedIcon } from './Icons';
 
 const MapView = forwardRef((props: any, ref) => {
-  const [mapMode, setMapMode] = useState<'hybrid' | 'cad'>('hybrid');
+  const [mapMode, setMapMode] = useState<'city' | 'cad'>('city');
 
   useImperativeHandle(ref, () => ({
     animateToRegion: () => {},
   }));
 
-  // Puducherry Bounding Coordinates
-  const osmUrl = 'https://www.openstreetmap.org/export/embed.html?bbox=79.820%2C11.924%2C79.840%2C11.944&layer=mapnik&marker=11.9338%2C79.8310';
+  // Extract markers passed as children
+  const markerList = useMemo(() => {
+    const list: any[] = [];
+    React.Children.forEach(props.children, (child: any) => {
+      if (child && child.props && child.props.coordinate) {
+        const isRed =
+          child.props.pinColor === Colors.policeRed ||
+          child.props.pinColor === Colors.noParkingRed ||
+          child.props.pinColor === '#DC2626';
+
+        list.push({
+          id: child.key || child.props.title,
+          title: child.props.title,
+          lat: child.props.coordinate.latitude,
+          lng: child.props.coordinate.longitude,
+          color: isRed ? '#D31826' : (child.props.pinColor || '#059669'),
+          isRed,
+        });
+      }
+    });
+    return list;
+  }, [props.children]);
+
+  // Self-contained Leaflet HTML locked strictly to Puducherry Boulevard
+  const leafletHtml = useMemo(() => {
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #map { width: 100%; height: 100%; background: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .custom-div-pin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      color: #ffffff;
+      font-weight: 900;
+      font-size: 11px;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+      border: 2px solid #ffffff;
+      transition: transform 0.15s ease;
+      cursor: pointer;
+    }
+    .custom-div-pin:hover {
+      transform: scale(1.15);
+      z-index: 1000 !important;
+    }
+    .pin-label-box {
+      background: rgba(11, 37, 89, 0.92);
+      color: #fff;
+      padding: 3px 7px;
+      border-radius: 4px;
+      font-size: 9.5px;
+      font-weight: 700;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      margin-top: 2px;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    .leaflet-popup-content-wrapper {
+      border-radius: 10px;
+      padding: 4px 6px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.25);
+      border: 1px solid #cbd5e1;
+    }
+    .popup-title { font-size: 13px; font-weight: 800; color: #0b2559; margin-bottom: 2px; }
+    .popup-sub { font-size: 11px; color: #64748b; margin-bottom: 6px; }
+    .popup-badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; }
+    .badge-auth { background: #ecfdf5; color: #059669; }
+    .badge-tow { background: #fef2f2; color: #dc2626; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    // Initialize strictly locked to Puducherry Boulevard (Rock Beach & White Town)
+    var map = L.map('map', {
+      center: [11.9338, 79.8310],
+      zoom: 15,
+      minZoom: 13,
+      maxZoom: 18,
+      zoomControl: true,
+      attributionControl: false
+    });
+
+    // High definition crisp city map tiles
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      maxZoom: 19,
+      subdomains: 'abcd'
+    }).addTo(map);
+
+    // Strict No-Parking Tow-Away Zone Polygons (Goubert Promenade waterfront & Raj Nivas)
+    var promenadeRed = L.circle([11.9330, 79.8358], {
+      color: '#dc2626',
+      fillColor: '#ef4444',
+      fillOpacity: 0.22,
+      radius: 220,
+      weight: 2
+    }).addTo(map);
+    promenadeRed.bindPopup('<b style="color:#dc2626">Rock Beach Goubert Promenade</b><br><span style="font-size:11px;">Zero Tolerance Tow-Away Corridor (5 PM - 6 AM)</span>');
+
+    var rajNivasRed = L.circle([11.9320, 79.8348], {
+      color: '#dc2626',
+      fillColor: '#ef4444',
+      fillOpacity: 0.22,
+      radius: 140,
+      weight: 2
+    }).addTo(map);
+    rajNivasRed.bindPopup('<b style="color:#dc2626">Raj Nivas High Security Enclave</b><br><span style="font-size:11px;">VVIP Perimeter - Automated Crane Towing</span>');
+
+    // Plot all Puducherry parking & tow-away markers
+    var markers = ${JSON.stringify(markerList)};
+    markers.forEach(function(m) {
+      var iconHtml = '<div class="custom-div-pin" style="width:26px;height:26px;background:' + m.color + ';">' + (m.isRed ? '!' : 'P') + '</div>';
+      var customIcon = L.divIcon({
+        html: iconHtml,
+        className: '',
+        iconSize: [26, 26],
+        iconAnchor: [13, 13],
+        popupAnchor: [0, -14]
+      });
+
+      var marker = L.marker([m.lat, m.lng], { icon: customIcon }).addTo(map);
+      var popupContent = '<div class="popup-title">' + m.title + '</div>' +
+        '<div class="popup-sub">Puducherry Traffic Police Monitored Kerb</div>' +
+        '<div class="popup-badge ' + (m.isRed ? 'badge-tow' : 'badge-auth') + '">' +
+        (m.isRed ? 'TOW-AWAY RESTRICTION' : 'AUTHORIZED PARKING') + '</div>';
+      marker.bindPopup(popupContent);
+    });
+  </script>
+</body>
+</html>`;
+  }, [markerList]);
 
   return (
     <View style={[styles.mapContainer, props.style]}>
-      {/* Real Map Layer (OSM Embedded Map Tile Frame) */}
-      {mapMode === 'hybrid' ? (
+      {/* Real Map Layer (Leaflet locked to Puducherry) */}
+      {mapMode === 'city' ? (
         <View style={styles.iframeWrapper}>
           {React.createElement('iframe', {
-            src: osmUrl,
-            title: 'Puducherry Smart Parking Map',
+            srcDoc: leafletHtml,
+            title: 'Puducherry Police Smart Kerb Radar',
             style: {
               width: '100%',
               height: '100%',
               border: 'none',
-              filter: 'contrast(1.02) saturate(1.05)',
             },
           })}
         </View>
@@ -36,44 +172,39 @@ const MapView = forwardRef((props: any, ref) => {
           <View style={styles.oceanCoast}>
             <Text style={styles.oceanText}>BAY OF BENGAL (ROCK BEACH COAST)</Text>
           </View>
-          {/* Coastal Boulevard Goubert Avenue */}
           <View style={styles.goubertAve} />
-          {/* Main Heritage East-West Corridors */}
           <View style={[styles.roadHorizontal, { top: '28%' }]} />
           <View style={[styles.roadHorizontal, { top: '52%' }]} />
           <View style={[styles.roadHorizontal, { top: '74%' }]} />
-          {/* North-South Canals & Mission Street */}
           <View style={[styles.roadVertical, { left: '32%' }]} />
           <View style={[styles.roadVertical, { left: '56%' }]} />
+          <View style={styles.markersOverlay} pointerEvents="box-none">
+            {props.children}
+          </View>
         </View>
       )}
-
-      {/* Interactive Geo-Markers Overlay Layer */}
-      <View style={styles.markersOverlay} pointerEvents="box-none">
-        {props.children}
-      </View>
 
       {/* Police Command HUD Top Bar */}
       <View style={styles.hudTopBar}>
         <View style={styles.hudBadge}>
           <View style={styles.radarPulseDot} />
-          <Text style={styles.hudBadgeText}>TRAFFIC RADAR • PUDUCHERRY BOULEVARD</Text>
+          <Text style={styles.hudBadgeText}>PUDUCHERRY TRAFFIC POLICE • SMART KERB RADAR</Text>
         </View>
 
         {/* Map View Toggle Button */}
         <TouchableOpacity
           style={styles.toggleBtn}
-          onPress={() => setMapMode(prev => prev === 'hybrid' ? 'cad' : 'hybrid')}
+          onPress={() => setMapMode(prev => prev === 'city' ? 'cad' : 'city')}
           activeOpacity={0.8}
         >
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {mapMode === 'hybrid' ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            {mapMode === 'city' ? (
               <LayersIcon color={Colors.policeNavy} size={11} />
             ) : (
               <MapIcon color={Colors.policeNavy} size={11} />
             )}
             <Text style={styles.toggleBtnText}>
-              {mapMode === 'hybrid' ? ' CAD Grid' : ' City Map'}
+              {mapMode === 'city' ? 'CAD Grid' : 'City Map'}
             </Text>
           </View>
         </TouchableOpacity>
@@ -109,7 +240,6 @@ export const Marker = ({ coordinate, title, pinColor, onPress }: any) => {
   const minLon = 79.820;
   const maxLon = 79.840;
 
-  // Normalized percentages
   const rawTop = 100 - ((coordinate.latitude - minLat) / (maxLat - minLat)) * 100;
   const rawLeft = ((coordinate.longitude - minLon) / (maxLon - minLon)) * 100;
 
@@ -145,7 +275,7 @@ export const PROVIDER_GOOGLE = 'google';
 
 const styles = StyleSheet.create({
   mapContainer: {
-    height: 320,
+    height: 380,
     backgroundColor: '#E2E8F0',
     borderRadius: 14,
     borderWidth: 1.5,
@@ -236,9 +366,9 @@ const styles = StyleSheet.create({
   hudBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(11, 37, 89, 0.92)',
+    backgroundColor: 'rgba(11, 37, 89, 0.94)',
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 5.5,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(245, 158, 11, 0.5)',
@@ -259,7 +389,7 @@ const styles = StyleSheet.create({
   toggleBtn: {
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     paddingHorizontal: 9,
-    paddingVertical: 4.5,
+    paddingVertical: 5,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#CBD5E1',
@@ -334,7 +464,7 @@ const styles = StyleSheet.create({
     bottom: 8,
     left: 8,
     right: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
