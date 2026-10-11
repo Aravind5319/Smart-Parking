@@ -2,16 +2,27 @@
 // MEMBER 3 WORKSPACE: TRAFFIC ADVISORIES & EMERGENCY CORRIDOR ALERTS
 // ============================================================================
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { MOCK_ADVISORIES } from '../../data/mockData';
 import { SirenIcon } from '../../components/common/Icons';
+import { AppwriteDb } from '../../services/appwriteDb';
+import { TrafficAdvisory } from '../../types/navigation';
 
 export const AdvisoriesScreen: React.FC = () => {
+  const [advisories, setAdvisories] = useState<TrafficAdvisory[]>(MOCK_ADVISORIES);
+
+  useEffect(() => {
+    AppwriteDb.fetchTrafficAdvisories().then((live) => {
+      if (live && live.length > 0) {
+        setAdvisories(live);
+      }
+    });
+  }, []);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-
 
       <Text style={styles.pageTitle}>Puducherry Traffic Bulletins</Text>
       <Text style={styles.pageSub}>
@@ -19,7 +30,7 @@ export const AdvisoriesScreen: React.FC = () => {
       </Text>
 
       {/* Advisory Cards */}
-      {MOCK_ADVISORIES.map((adv) => {
+      {advisories.map((adv) => {
         const isEmergency = adv.severity === 'EMERGENCY';
         const isHigh = adv.severity === 'HIGH';
 

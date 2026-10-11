@@ -21,6 +21,7 @@ import { TabType, ViolationReport } from './src/types/navigation';
 import { MOCK_TICKETS } from './src/data/mockData';
 import { Colors } from './src/theme/colors';
 import { PoliceShieldIcon } from './src/components/common/Icons';
+import { AppwriteDb } from './src/services/appwriteDb';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('parking');
@@ -48,6 +49,13 @@ export default function App() {
       }
     }
 
+    // Fetch tickets from Appwrite DB on startup
+    AppwriteDb.fetchViolationReports().then((liveTickets) => {
+      if (liveTickets && liveTickets.length > 0) {
+        setTickets(liveTickets);
+      }
+    });
+
     // Auto dismiss splash after 1.8 seconds
     const timer = setTimeout(() => {
       setShowSplash(false);
@@ -60,6 +68,12 @@ export default function App() {
     setKarmaPoints((prev) => prev + newReport.karmaPoints);
     setIsCameraActive(false);
     setActiveTab('tickets');
+
+    // Persist to Appwrite Database asynchronously
+    AppwriteDb.createViolationReport(newReport).catch((err) => {
+      console.warn('Appwrite report persistence warning:', err);
+    });
+
     Alert.alert(
       'Report Submitted Successfully',
       `Reference Ticket: ${newReport.referenceNo}\n\n+${newReport.karmaPoints} Civic Karma points awarded to your profile.\n\nAssigned to Puducherry Traffic Police Control Room.`

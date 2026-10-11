@@ -40,6 +40,7 @@ import {
   getDistance,
   fetchRealParkingZones,
 } from '../../services/parkingService';
+import { AppwriteDb } from '../../services/appwriteDb';
 
 type VehicleType = 'CAR' | 'BIKE';
 type CategoryFilter = 'ALL' | 'FREE' | 'GOVT';
@@ -70,7 +71,7 @@ export const FindParkingScreen: React.FC = () => {
   });
 
   useEffect(() => {
-    fetchRealParkingZones().then((realZones) => {
+    AppwriteDb.fetchParkingZones().then((realZones) => {
       if (realZones && realZones.length > 0) {
         setZones(realZones);
         // Pre-select the top available spot for vehicle type

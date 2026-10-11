@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "~3.2.3",
+    "appwrite": "^28.1.0",
     "expo": "~51.0.28",
     "expo-location": "~17.0.1",
     "expo-status-bar": "~1.12.1",
@@ -23,6 +24,7 @@
     "@babel/core": "^7.20.0",
     "@types/react": "~18.2.45",
     "babel-plugin-module-resolver": "^5.0.3",
+    "node-appwrite": "^29.2.0",
     "typescript": "~5.3.3"
   },
   "private": true
