@@ -1,6 +1,7 @@
 import React, { forwardRef, useImperativeHandle, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Colors } from '../../theme/colors';
+import { LayersIcon, MapIcon, ProhibitedIcon } from './Icons';
 
 const MapView = forwardRef((props: any, ref) => {
   const [mapMode, setMapMode] = useState<'hybrid' | 'cad'>('hybrid');
@@ -65,9 +66,16 @@ const MapView = forwardRef((props: any, ref) => {
           onPress={() => setMapMode(prev => prev === 'hybrid' ? 'cad' : 'hybrid')}
           activeOpacity={0.8}
         >
-          <Text style={styles.toggleBtnText}>
-            {mapMode === 'hybrid' ? '🛰️ CAD View' : '🗺️ City Map'}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {mapMode === 'hybrid' ? (
+              <LayersIcon color={Colors.policeNavy} size={11} />
+            ) : (
+              <MapIcon color={Colors.policeNavy} size={11} />
+            )}
+            <Text style={styles.toggleBtnText}>
+              {mapMode === 'hybrid' ? ' CAD Grid' : ' City Map'}
+            </Text>
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -117,7 +125,11 @@ export const Marker = ({ coordinate, title, pinColor, onPress }: any) => {
       activeOpacity={0.85}
     >
       <View style={[styles.markerPin, { backgroundColor: pinColor, borderColor: isRed ? '#FCA5A5' : '#FFFFFF' }]}>
-        <Text style={styles.markerIconText}>{isRed ? '⛔' : 'P'}</Text>
+        {isRed ? (
+          <ProhibitedIcon color="#FFFFFF" size={13} strokeWidth={2.5} />
+        ) : (
+          <Text style={styles.markerIconText}>P</Text>
+        )}
       </View>
       <View style={[styles.markerLabel, isRed ? styles.markerLabelRed : styles.markerLabelGreen]}>
         <Text style={[styles.markerLabelText, isRed ? styles.textRed : styles.textNavy]} numberOfLines={1}>

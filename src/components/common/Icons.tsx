@@ -310,9 +310,151 @@ export const ChevronDownIcon: React.FC<IconProps> = ({ color = '#64748B', size =
   return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
 };
 
+// 22. Navigation Compass Icon
+export const NavigationIcon: React.FC<IconProps> = ({ color = '#FFFFFF', size = 16, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <polygon points="3 11 22 2 13 21 11 13 3 11" fill={color} fillOpacity="0.2" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 23. Walking Person Icon
+export const WalkIcon: React.FC<IconProps> = ({ color = '#64748B', size = 14, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <circle cx="13.5" cy="4.5" r="2.5" />
+        <path d="M7 21l3-6 2 2v5" />
+        <path d="M12 11l2 2 4-2" />
+        <path d="M10 11l-2 3" />
+        <path d="M12 8v5" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 24. Two-Wheeler / Motorcycle Icon
+export const MotorcycleIcon: React.FC<IconProps> = ({ color = '#64748B', size = 16, strokeWidth = 1.8 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <circle cx="5" cy="16" r="3" />
+        <circle cx="19" cy="16" r="3" />
+        <path d="M12 16h-4l3-7h3l2 4h3" />
+        <path d="M14 6l-2 3" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 25. Clock / Countdown Timer Icon
+export const ClockIcon: React.FC<IconProps> = ({ color = '#FFFFFF', size = 16, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 26. Beach / Wave Destination Icon
+export const BeachIcon: React.FC<IconProps> = ({ color = '#0B2559', size = 14, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <path d="M2 19c2-1 4-1 6 0s4 1 6 0 4-1 6 0" />
+        <path d="M2 15c2-1 4-1 6 0s4 1 6 0 4-1 6 0" />
+        <circle cx="12" cy="6" r="3" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 27. Monument / Heritage Quarter Icon
+export const MonumentIcon: React.FC<IconProps> = ({ color = '#0B2559', size = 14, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <path d="M4 21h16" />
+        <path d="M6 21V10" />
+        <path d="M10 21V10" />
+        <path d="M14 21V10" />
+        <path d="M18 21V10" />
+        <path d="M3 10h18l-9-7-9 7z" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 28. Shopping Bag Icon
+export const ShoppingBagIcon: React.FC<IconProps> = ({ color = '#0B2559', size = 14, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <path d="M16 10a4 4 0 0 1-8 0" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 29. Park Tree Icon
+export const ParkTreeIcon: React.FC<IconProps> = ({ color = '#0B2559', size = 14, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <path d="M12 2L4 12h4l-3 6h5v4h4v-4h5l-3-6h4z" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 30. Ship / Port Anchor Icon
+export const AnchorIcon: React.FC<IconProps> = ({ color = '#0B2559', size = 14, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <circle cx="12" cy="5" r="3" />
+        <line x1="12" y1="22" x2="12" y2="8" />
+        <path d="M5 12H2a10 10 0 0 0 20 0h-3" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 31. Map Layers / Switch Icon
+export const LayersIcon: React.FC<IconProps> = ({ color = '#0B2559', size = 13, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <polygon points="12 2 2 7 12 12 22 7 12 2" />
+        <polyline points="2 17 12 22 22 17" />
+        <polyline points="2 12 12 17 22 12" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
 const styles = StyleSheet.create({
   fallbackBox: {
     borderWidth: 1.5,
     borderRadius: 3,
   },
 });
+

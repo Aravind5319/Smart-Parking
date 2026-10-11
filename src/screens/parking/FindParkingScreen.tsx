@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   Image,
-  Platform,
   Alert,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, Circle } from '../../components/common/MapComponent';
@@ -20,6 +19,15 @@ import {
   WarningIcon,
   CarIcon,
   ArrowRightIcon,
+  NavigationIcon,
+  WalkIcon,
+  MotorcycleIcon,
+  BeachIcon,
+  MonumentIcon,
+  ShoppingBagIcon,
+  ParkTreeIcon,
+  AnchorIcon,
+  ProhibitedIcon,
 } from '../../components/common/Icons';
 import {
   ParkingZone,
@@ -118,7 +126,7 @@ export const FindParkingScreen: React.FC = () => {
 
     if (inRestricted && warningTimer === null && !violationGenerated) {
       setActiveWarningZone(matchedZoneName);
-      setWarningTimer(10); // 10-second demo representation for hackathon review
+      setWarningTimer(10); // 10-second demo representation for review
     } else if (!inRestricted && warningTimer !== null) {
       setWarningTimer(null);
       setActiveWarningZone('');
@@ -279,7 +287,7 @@ export const FindParkingScreen: React.FC = () => {
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearBtn}>
-                <Text style={styles.clearBtnText}>✕</Text>
+                <Text style={styles.clearBtnText}>Clear</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -296,7 +304,8 @@ export const FindParkingScreen: React.FC = () => {
                 handleSelectDestination('Rock Beach', { latitude: 11.933, longitude: 79.8358 })
               }
             >
-              <Text style={styles.quickChipText}>🏖️ Rock Beach</Text>
+              <BeachIcon color="#0B2559" size={13} />
+              <Text style={styles.quickChipText}>Rock Beach</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.quickChip}
@@ -304,7 +313,8 @@ export const FindParkingScreen: React.FC = () => {
                 handleSelectDestination('White Town', { latitude: 11.9325, longitude: 79.8338 })
               }
             >
-              <Text style={styles.quickChipText}>🏛️ White Town</Text>
+              <MonumentIcon color="#0B2559" size={13} />
+              <Text style={styles.quickChipText}>White Town</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.quickChip}
@@ -312,7 +322,8 @@ export const FindParkingScreen: React.FC = () => {
                 handleSelectDestination('Mission Street', { latitude: 11.9348, longitude: 79.8295 })
               }
             >
-              <Text style={styles.quickChipText}>🛍️ Mission St</Text>
+              <ShoppingBagIcon color="#0B2559" size={13} />
+              <Text style={styles.quickChipText}>Mission St</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.quickChip}
@@ -320,7 +331,8 @@ export const FindParkingScreen: React.FC = () => {
                 handleSelectDestination('Bharathi Park', { latitude: 11.9315, longitude: 79.834 })
               }
             >
-              <Text style={styles.quickChipText}>🌳 Bharathi Park</Text>
+              <ParkTreeIcon color="#0B2559" size={13} />
+              <Text style={styles.quickChipText}>Bharathi Park</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.quickChip}
@@ -328,7 +340,8 @@ export const FindParkingScreen: React.FC = () => {
                 handleSelectDestination('Old Port', { latitude: 11.9265, longitude: 79.8345 })
               }
             >
-              <Text style={styles.quickChipText}>🚢 Old Port</Text>
+              <AnchorIcon color="#0B2559" size={13} />
+              <Text style={styles.quickChipText}>Old Port</Text>
             </TouchableOpacity>
           </ScrollView>
 
@@ -342,7 +355,7 @@ export const FindParkingScreen: React.FC = () => {
             >
               <LocationPinIcon color={Colors.policeNavy} size={16} />
               <Text style={styles.locationBtnText}>
-                {isLocating ? 'Locating GPS...' : '📍 Use My Location'}
+                {isLocating ? 'Locating GPS...' : 'Use Current Location'}
               </Text>
             </TouchableOpacity>
 
@@ -365,7 +378,7 @@ export const FindParkingScreen: React.FC = () => {
                 <WarningIcon color="#FFFFFF" size={18} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.warningTitle}>⚠️ NO-PARKING RESTRICTION DETECTED</Text>
+                <Text style={styles.warningTitle}>RESTRICTED NO-PARKING ZONE DETECTED</Text>
                 <Text style={styles.warningSubtitle}>
                   Puducherry Traffic Police • Zero Tolerance Tow-Away Zone
                 </Text>
@@ -381,7 +394,7 @@ export const FindParkingScreen: React.FC = () => {
               <Text style={styles.timerLabel}>COUNTDOWN BEFORE TOW-AWAY VIOLATION NOTICE:</Text>
               <Text style={styles.timerValue}>{formatTime(warningTimer)}</Text>
               <Text style={styles.timerSubNotice}>
-                Automated ANPR & Traffic Warden dispatch triggered at 00:00
+                Automated ANPR and Traffic Warden dispatch triggered at 00:00
               </Text>
             </View>
 
@@ -392,7 +405,8 @@ export const FindParkingScreen: React.FC = () => {
                 if (nearestSafe) handleSelectZone(nearestSafe);
               }}
             >
-              <Text style={styles.findSafeParkingBtnText}>🧭 Navigate to Nearest Legal Parking</Text>
+              <NavigationIcon color="#FFFFFF" size={14} />
+              <Text style={styles.findSafeParkingBtnText}>Navigate to Safe Parking</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -406,7 +420,7 @@ export const FindParkingScreen: React.FC = () => {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.warningTitle, { color: '#991B1B' }]}>
-                  🚨 VIOLATION LOGGED TO POLICE CONTROL ROOM
+                  VIOLATION LOGGED TO POLICE CONTROL ROOM
                 </Text>
                 <Text style={styles.warningSubtitle}>
                   Tow-Away Event ID: PD-TOW-{Math.floor(1000 + Math.random() * 9000)}
@@ -439,32 +453,36 @@ export const FindParkingScreen: React.FC = () => {
             style={[styles.filterPill, activeFilter === 'AVAILABLE' && styles.filterPillActiveGreen]}
             onPress={() => setActiveFilter('AVAILABLE')}
           >
+            <View style={[styles.filterDot, { backgroundColor: activeFilter === 'AVAILABLE' ? '#FFFFFF' : '#059669' }]} />
             <Text style={[styles.filterPillText, activeFilter === 'AVAILABLE' && styles.filterPillTextActiveGreen]}>
-              🟢 Vacant ({zones.filter((z) => z.type === 'PARKING_GREEN' && !z.isFull).length})
+              Vacant ({zones.filter((z) => z.type === 'PARKING_GREEN' && !z.isFull).length})
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.filterPill, activeFilter === '2W' && styles.filterPillActive]}
             onPress={() => setActiveFilter('2W')}
           >
+            <MotorcycleIcon color={activeFilter === '2W' ? '#FFFFFF' : '#475569'} size={14} />
             <Text style={[styles.filterPillText, activeFilter === '2W' && styles.filterPillTextActive]}>
-              🛵 2-Wheeler
+              Two-Wheeler
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.filterPill, activeFilter === '4W' && styles.filterPillActive]}
             onPress={() => setActiveFilter('4W')}
           >
+            <CarIcon color={activeFilter === '4W' ? '#FFFFFF' : '#475569'} size={15} />
             <Text style={[styles.filterPillText, activeFilter === '4W' && styles.filterPillTextActive]}>
-              🚗 4-Wheeler
+              Four-Wheeler
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.filterPill, activeFilter === 'RESTRICTED' && styles.filterPillActiveRed]}
             onPress={() => setActiveFilter('RESTRICTED')}
           >
+            <ProhibitedIcon color={activeFilter === 'RESTRICTED' ? '#FFFFFF' : '#D31826'} size={13} strokeWidth={2.2} />
             <Text style={[styles.filterPillText, activeFilter === 'RESTRICTED' && styles.filterPillTextActiveRed]}>
-              ⛔ Red Zones ({zones.filter((z) => z.type === 'NO_PARKING_RED').length})
+              Tow-Away Zones ({zones.filter((z) => z.type === 'NO_PARKING_RED').length})
             </Text>
           </TouchableOpacity>
         </View>
@@ -536,6 +554,15 @@ export const FindParkingScreen: React.FC = () => {
                         : styles.badgeRed,
                     ]}
                   >
+                    <View
+                      style={[
+                        styles.indicatorDot,
+                        {
+                          backgroundColor:
+                            selectedZone.type === 'PARKING_GREEN' ? '#059669' : '#DC2626',
+                        },
+                      ]}
+                    />
                     <Text
                       style={[
                         styles.zoneTypeBadgeText,
@@ -545,21 +572,27 @@ export const FindParkingScreen: React.FC = () => {
                       ]}
                     >
                       {selectedZone.type === 'PARKING_GREEN'
-                        ? '🟢 AUTHORIZED CIVIC PARKING'
-                        : '⛔ STRICT NO-PARKING / TOW-AWAY'}
+                        ? 'AUTHORIZED CIVIC PARKING'
+                        : 'STRICT NO-PARKING / TOW-AWAY'}
                     </Text>
                   </View>
                   <Text style={styles.zoneAreaText}>{selectedZone.area}</Text>
                 </View>
 
                 <Text style={styles.selectedZoneName}>{selectedZone.name}</Text>
-                <Text style={styles.selectedStreetName}>📍 {selectedZone.streetName}</Text>
+                <View style={styles.selectedLocationRow}>
+                  <LocationPinIcon color="#CBD5E1" size={13} />
+                  <Text style={styles.selectedStreetName}>{selectedZone.streetName}</Text>
+                </View>
               </View>
             </View>
 
             {selectedZone.type === 'NO_PARKING_RED' ? (
               <View style={styles.redDetailsBox}>
-                <Text style={styles.redDetailsTitle}>⚠️ Police Enforcement Advisory:</Text>
+                <View style={styles.redDetailsHeader}>
+                  <WarningIcon color="#FCA5A5" size={14} />
+                  <Text style={styles.redDetailsTitle}>Police Enforcement Advisory</Text>
+                </View>
                 <Text style={styles.redDetailsText}>{selectedZone.enforcementNotes}</Text>
                 <TouchableOpacity
                   style={styles.redirectActionBtn}
@@ -568,8 +601,9 @@ export const FindParkingScreen: React.FC = () => {
                     if (nearest) handleSelectZone(nearest);
                   }}
                 >
+                  <NavigationIcon color="#FFFFFF" size={14} />
                   <Text style={styles.redirectActionBtnText}>
-                    🧭 Find Nearest Legal Alternative
+                    Find Nearest Safe Parking
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -579,22 +613,36 @@ export const FindParkingScreen: React.FC = () => {
                 <View style={styles.occupancyMeterBox}>
                   <View style={styles.meterHeader}>
                     <Text style={styles.meterLabel}>BAY OCCUPANCY & AVAILABILITY</Text>
-                    <Text
-                      style={[
-                        styles.meterStatus,
-                        selectedZone.isFull
-                          ? { color: '#EF4444' }
+                    <View style={styles.meterStatusBadge}>
+                      <View
+                        style={[
+                          styles.statusDot,
+                          {
+                            backgroundColor: selectedZone.isFull
+                              ? '#EF4444'
+                              : (selectedZone.occupiedSlots! / selectedZone.totalSlots!) > 0.7
+                              ? '#F59E0B'
+                              : '#10B981',
+                          },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.meterStatus,
+                          selectedZone.isFull
+                            ? { color: '#EF4444' }
+                            : (selectedZone.occupiedSlots! / selectedZone.totalSlots!) > 0.7
+                            ? { color: '#F59E0B' }
+                            : { color: '#10B981' },
+                        ]}
+                      >
+                        {selectedZone.isFull
+                          ? 'FULL'
                           : (selectedZone.occupiedSlots! / selectedZone.totalSlots!) > 0.7
-                          ? { color: '#F59E0B' }
-                          : { color: '#10B981' },
-                      ]}
-                    >
-                      {selectedZone.isFull
-                        ? '🔴 FULL'
-                        : (selectedZone.occupiedSlots! / selectedZone.totalSlots!) > 0.7
-                        ? '🟡 FILLING FAST'
-                        : '🟢 AVAILABLE'}
-                    </Text>
+                          ? 'FILLING FAST'
+                          : 'AVAILABLE'}
+                      </Text>
+                    </View>
                   </View>
 
                   <View style={styles.progressBarTrack}>
@@ -636,7 +684,10 @@ export const FindParkingScreen: React.FC = () => {
                   </View>
                   <View style={styles.statCell}>
                     <Text style={styles.statCellLabel}>WALK TIME</Text>
-                    <Text style={styles.statCellValue}>🚶 {selectedZone.walkingTimeMin} min</Text>
+                    <View style={styles.statIconRow}>
+                      <WalkIcon color="#FFFFFF" size={12} />
+                      <Text style={styles.statCellValue}> {selectedZone.walkingTimeMin} min</Text>
+                    </View>
                   </View>
                   <View style={styles.statCell}>
                     <Text style={styles.statCellLabel}>TARIFF</Text>
@@ -653,7 +704,10 @@ export const FindParkingScreen: React.FC = () => {
                 {/* Smart Kerb Diagram */}
                 <View style={styles.kerbVisualBox}>
                   <View style={styles.kerbGreen}>
-                    <Text style={styles.kerbTitle}>🟢 AUTHORIZED BAY</Text>
+                    <View style={styles.kerbTitleRow}>
+                      <View style={[styles.kerbDot, { backgroundColor: '#10B981' }]} />
+                      <Text style={styles.kerbTitle}>AUTHORIZED BAY</Text>
+                    </View>
                     <Text style={styles.kerbSub}>
                       {selectedZone.isFull
                         ? '0'
@@ -666,7 +720,10 @@ export const FindParkingScreen: React.FC = () => {
                     <View style={styles.dash} />
                   </View>
                   <View style={styles.kerbRed}>
-                    <Text style={styles.kerbTitle}>🔴 NO-PARKING KERB</Text>
+                    <View style={styles.kerbTitleRow}>
+                      <View style={[styles.kerbDot, { backgroundColor: '#EF4444' }]} />
+                      <Text style={styles.kerbTitle}>NO-PARKING KERB</Text>
+                    </View>
                     <Text style={styles.kerbSub}>ZERO TOLERANCE</Text>
                   </View>
                 </View>
@@ -691,8 +748,9 @@ export const FindParkingScreen: React.FC = () => {
                       style={styles.actionBtnRedirect}
                       onPress={() => handleSelectZone(redirectZone)}
                     >
+                      <NavigationIcon color="#FFF" size={14} />
                       <Text style={styles.actionBtnText}>
-                        🧭 Divert to {redirectZone.name}
+                        Divert to {redirectZone.name}
                       </Text>
                       <ArrowRightIcon color="#FFF" size={14} />
                     </TouchableOpacity>
@@ -709,7 +767,8 @@ export const FindParkingScreen: React.FC = () => {
                       )
                     }
                   >
-                    <Text style={styles.actionBtnText}>🧭 Get Navigation Directions</Text>
+                    <NavigationIcon color="#FFF" size={15} />
+                    <Text style={styles.actionBtnText}>Get Navigation Directions</Text>
                     <ArrowRightIcon color="#FFF" size={15} />
                   </TouchableOpacity>
                 )}
@@ -751,18 +810,22 @@ export const FindParkingScreen: React.FC = () => {
                   )}
                 </View>
 
-                <Text style={styles.zoneListSub}>
-                  📍 {zone.streetName} • {zone.area}
-                </Text>
+                <View style={styles.zoneLocationRow}>
+                  <LocationPinIcon color="#64748B" size={12} />
+                  <Text style={styles.zoneListSub}>
+                    {zone.streetName} • {zone.area}
+                  </Text>
+                </View>
 
                 <View style={styles.zoneTagsRow}>
-                  <Text style={styles.zoneTagText}>📍 {zone.distanceKm} km</Text>
+                  <Text style={styles.zoneTagText}>{zone.distanceKm} km</Text>
                   {isGreen && (
                     <>
                       <Text style={styles.zoneTagDivider}>•</Text>
-                      <Text style={styles.zoneTagText}>🚶 {zone.walkingTimeMin} min</Text>
+                      <WalkIcon color="#64748B" size={11} />
+                      <Text style={styles.zoneTagText}> {zone.walkingTimeMin} min walk</Text>
                       <Text style={styles.zoneTagDivider}>•</Text>
-                      <Text style={styles.zoneTagText}>💰 {zone.hourlyRate}</Text>
+                      <Text style={styles.zoneTagText}>{zone.hourlyRate}</Text>
                     </>
                   )}
                 </View>
@@ -795,7 +858,7 @@ export const FindParkingScreen: React.FC = () => {
                   </View>
                 ) : (
                   <View style={styles.redCirclePin}>
-                    <Text style={styles.redCirclePinText}>⛔</Text>
+                    <ProhibitedIcon color="#DC2626" size={15} strokeWidth={2.2} />
                   </View>
                 )}
               </View>
@@ -937,11 +1000,14 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   clearBtn: {
-    padding: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 4,
   },
   clearBtnText: {
-    color: '#94A3B8',
-    fontSize: 14,
+    color: '#64748B',
+    fontSize: 11,
     fontWeight: '700',
   },
   quickChipsContainer: {
@@ -950,12 +1016,15 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   quickChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#EFF6FF',
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 6,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#BFDBFE',
+    gap: 5,
   },
   quickChipText: {
     color: '#0B2559',
@@ -977,12 +1046,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#BFDBFE',
+    gap: 6,
   },
   locationBtnText: {
     color: '#0B2559',
     fontSize: 12,
     fontWeight: '700',
-    marginLeft: 5,
   },
   demoWarningBtn: {
     flexDirection: 'row',
@@ -994,12 +1063,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#FCA5A5',
+    gap: 5,
   },
   demoWarningBtnText: {
     color: '#D31826',
     fontSize: 11.5,
     fontWeight: '700',
-    marginLeft: 4,
   },
 
   // 3. Warning Card
@@ -1032,7 +1101,7 @@ const styles = StyleSheet.create({
   },
   warningTitle: {
     color: '#D31826',
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: '800',
     letterSpacing: 0.2,
   },
@@ -1073,10 +1142,13 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   findSafeParkingBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#0B2559',
     paddingVertical: 10,
     borderRadius: 8,
-    alignItems: 'center',
+    gap: 6,
   },
   findSafeParkingBtnText: {
     color: '#FFFFFF',
@@ -1117,12 +1189,15 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   filterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: '#CBD5E1',
+    gap: 5,
   },
   filterPillActive: {
     backgroundColor: '#0B2559',
@@ -1149,6 +1224,11 @@ const styles = StyleSheet.create({
   },
   filterPillTextActiveRed: {
     color: '#FFFFFF',
+  },
+  filterDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
 
   // 5. Map Component
@@ -1186,15 +1266,23 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   zoneTypeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 4,
+    gap: 5,
   },
   badgeGreen: {
     backgroundColor: 'rgba(16, 185, 129, 0.2)',
   },
   badgeRed: {
     backgroundColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  indicatorDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   zoneTypeBadgeText: {
     fontSize: 9.5,
@@ -1219,10 +1307,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     marginTop: 2,
   },
+  selectedLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 3,
+    gap: 4,
+  },
   selectedStreetName: {
     color: '#CBD5E1',
     fontSize: 11.5,
-    marginTop: 2,
     fontWeight: '500',
   },
 
@@ -1234,11 +1327,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(252, 165, 165, 0.3)',
   },
+  redDetailsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
   redDetailsTitle: {
     color: '#FCA5A5',
     fontSize: 11.5,
     fontWeight: '800',
-    marginBottom: 4,
   },
   redDetailsText: {
     color: '#FEE2E2',
@@ -1247,12 +1345,15 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   redirectActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#0B2559',
     paddingVertical: 10,
     borderRadius: 8,
-    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#3B82F6',
+    gap: 6,
   },
   redirectActionBtnText: {
     color: '#FFFFFF',
@@ -1280,6 +1381,16 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.6,
+  },
+  meterStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   meterStatus: {
     fontSize: 10,
@@ -1327,6 +1438,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
+  statIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   statCellLabel: {
     color: '#94A3B8',
     fontSize: 8.5,
@@ -1370,6 +1485,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
+  kerbTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  kerbDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
   kerbRoad: {
     width: 24,
     alignItems: 'center',
@@ -1405,12 +1530,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 4,
+    gap: 6,
   },
   redirectTitle: {
     color: '#F59E0B',
     fontSize: 10.5,
     fontWeight: '800',
-    marginLeft: 6,
   },
   redirectDestination: {
     color: '#FFF',
@@ -1430,6 +1555,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 10,
     borderRadius: 8,
+    gap: 6,
   },
 
   // Primary Action Button
@@ -1445,12 +1571,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 5,
     elevation: 3,
+    gap: 6,
   },
   actionBtnText: {
     color: '#FFF',
     fontSize: 13,
     fontWeight: '800',
-    marginRight: 6,
   },
 
   // 7. Directory List
@@ -1516,10 +1642,15 @@ const styles = StyleSheet.create({
     fontSize: 8.5,
     fontWeight: '800',
   },
+  zoneLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 4,
+  },
   zoneListSub: {
     fontSize: 11,
     color: '#475569',
-    marginBottom: 4,
     fontWeight: '500',
   },
   zoneTagsRow: {
@@ -1581,9 +1712,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEE2E2',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  redCirclePinText: {
-    fontSize: 13,
   },
 
   // Empty State

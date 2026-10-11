@@ -20,6 +20,7 @@ import { AdvisoriesScreen } from './src/screens/alerts/AdvisoriesScreen';
 import { TabType, ViolationReport } from './src/types/navigation';
 import { MOCK_TICKETS } from './src/data/mockData';
 import { Colors } from './src/theme/colors';
+import { PoliceShieldIcon } from './src/components/common/Icons';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('parking');
@@ -115,8 +116,9 @@ export default function App() {
           </Text>
 
           <View style={styles.splashBadge}>
+            <PoliceShieldIcon color="#F59E0B" size={13} />
             <Text style={styles.splashBadgeText}>
-              🛡️ Protecting with Pride • Command Center
+              Protecting with Pride • Command Center
             </Text>
           </View>
 
@@ -275,6 +277,9 @@ const styles = StyleSheet.create({
     maxWidth: 280,
   },
   splashBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     backgroundColor: 'rgba(11, 37, 89, 0.85)',
     paddingHorizontal: 14,
     paddingVertical: 7,
