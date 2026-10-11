@@ -857,9 +857,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   bannerLogo: {
-    width: 38,
-    height: 38,
-    marginRight: 10,
+    width: 44,
+    height: 46,
+    marginRight: 12,
   },
   commandTextCol: {
     flex: 1,
