@@ -74,9 +74,17 @@ export default function App() {
       console.warn('Appwrite report persistence warning:', err);
     });
 
+    const isCivic =
+      newReport.reportDomain === 'CIVIC_LOST_FOUND' ||
+      newReport.referenceNo.includes('CIV') ||
+      newReport.referenceNo.includes('FND') ||
+      newReport.referenceNo.includes('LST');
+
     Alert.alert(
-      'Report Submitted Successfully',
-      `Reference Ticket: ${newReport.referenceNo}\n\n+${newReport.karmaPoints} Civic Karma points awarded to your profile.\n\nAssigned to Puducherry Traffic Police Control Room.`
+      isCivic ? 'Found Item Registered & Published' : 'Report Submitted Successfully',
+      isCivic
+        ? `Reference Ticket: ${newReport.referenceNo}\n\n+${newReport.karmaPoints} Civic Karma points awarded to your profile.\n\n✓ Published to Public Advisories board so the owner can easily identify and claim the item at the Police Station.`
+        : `Reference Ticket: ${newReport.referenceNo}\n\n+${newReport.karmaPoints} Civic Karma points awarded to your profile.\n\nAssigned to Puducherry Traffic Police Control Room.`
     );
   };
 
@@ -89,7 +97,7 @@ export default function App() {
       case 'tickets':
         return 'Track Complaints';
       case 'alerts':
-        return 'Traffic Advisories';
+        return 'Advisories & Found Items';
     }
   };
 
@@ -183,7 +191,12 @@ export default function App() {
             onNavigateToReport={() => setActiveTab('report')}
           />
         )}
-        {activeTab === 'alerts' && <AdvisoriesScreen />}
+        {activeTab === 'alerts' && (
+          <AdvisoriesScreen
+            tickets={tickets}
+            onNavigateToReport={() => setActiveTab('report')}
+          />
+        )}
       </View>
 
       {/* Tactile Floating Bottom Navigation (Hidden while camera viewfinder is open) */}

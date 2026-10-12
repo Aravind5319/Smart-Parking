@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { ViolationReport } from '../../types/navigation';
-import { ChevronDownIcon } from '../../components/common/Icons';
+import { ChevronDownIcon, PurseIcon, CarIcon, SearchIcon, PhoneIcon } from '../../components/common/Icons';
 
 interface TrackComplaintsScreenProps {
   tickets: ViolationReport[];
@@ -46,18 +46,36 @@ export const TrackComplaintsScreen: React.FC<TrackComplaintsScreenProps> = ({
     }));
   };
 
-  const getStatusBadge = (status: ViolationReport['status']) => {
+  const getStatusBadge = (
+    status: ViolationReport['status'],
+    isFound: boolean,
+    isLost: boolean
+  ) => {
     switch (status) {
       case 'SUBMITTED':
         return { label: 'Submitted', bg: Colors.badgeSubmitted, text: Colors.badgeSubmittedText };
       case 'UNDER_REVIEW':
-        return { label: 'Reviewing', bg: Colors.badgeReview, text: Colors.badgeReviewText };
+        return {
+          label: isFound ? 'Verifying Desk' : isLost ? 'Active Search' : 'Reviewing',
+          bg: Colors.badgeReview,
+          text: Colors.badgeReviewText,
+        };
       case 'CHALLAN_ISSUED':
-        return { label: 'Challan Issued', bg: Colors.badgeVerified, text: Colors.badgeVerifiedText };
+        return {
+          label: isFound ? 'In Safe Custody' : isLost ? 'Potential Match' : 'Challan Issued',
+          bg: Colors.badgeVerified,
+          text: Colors.badgeVerifiedText,
+        };
       case 'ENFORCEMENT_COMPLETE':
-        return { label: 'Cleared', bg: Colors.badgeVerified, text: Colors.badgeVerifiedText };
+        return {
+          label: isFound ? 'Claimed by Owner' : isLost ? 'Reunited / Safe' : 'Cleared',
+          bg: Colors.badgeVerified,
+          text: Colors.badgeVerifiedText,
+        };
       case 'REJECTED':
         return { label: 'Dismissed', bg: Colors.badgeRejected, text: Colors.badgeRejectedText };
+      default:
+        return { label: 'Submitted', bg: Colors.badgeSubmitted, text: Colors.badgeSubmittedText };
     }
   };
 
@@ -65,28 +83,40 @@ export const TrackComplaintsScreen: React.FC<TrackComplaintsScreenProps> = ({
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       {/* Quick Access Action Button at the top */}
       <TouchableOpacity style={styles.newReportBtnTop} onPress={onNavigateToReport} activeOpacity={0.8}>
-        <Text style={styles.newReportBtnText}>+ Report Another Violation</Text>
+        <Text style={styles.newReportBtnText}>+ Report Traffic Violation or Lost/Found Item</Text>
       </TouchableOpacity>
 
       <Text style={styles.sectionHeader}>Your Submitted Complaints ({tickets.length})</Text>
 
-      {tickets.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>No Complaints on File</Text>
-          <Text style={styles.emptySub}>
-            All citizen reports submitted through the app are logged in the Puducherry Police database and tracked here in real-time.
-          </Text>
-          <TouchableOpacity style={styles.emptyActionBtn} onPress={onNavigateToReport} activeOpacity={0.85}>
-            <Text style={styles.emptyActionText}>Report a Parking Violation</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        tickets.map((ticket) => {
-          const isExpanded = !!expandedTickets[ticket.id];
-          const badge = getStatusBadge(ticket.status);
+      {/* Vertical list of complaints, one after another */}
+      {tickets.map((ticket) => {
+        const isExpanded = !!expandedTickets[ticket.id];
+        const isCivic =
+          ticket.reportDomain === 'CIVIC_LOST_FOUND' ||
+          ticket.id === 'rep-003' ||
+          ticket.id === 'rep-004' ||
+          ticket.referenceNo.includes('CIV') ||
+          ticket.referenceNo.includes('FND') ||
+          ticket.referenceNo.includes('LST') ||
+          ticket.violationType === 'FOUND_PURSE_VALUABLE' ||
+          ticket.violationType === 'FOUND_DOCUMENTS' ||
+          ticket.violationType === 'LOST_PROPERTY' ||
+          ticket.violationType === 'ROAD_HAZARD' ||
+          ticket.violationType === 'UNATTENDED_OBJECT';
 
-          return (
-            <View key={ticket.id} style={styles.complaintCard}>
+        const isLost =
+          isCivic &&
+          (ticket.civicFlowType === 'LOST' ||
+            ticket.referenceNo.includes('LST') ||
+            ticket.id === 'rep-004' ||
+            ticket.violationType === 'LOST_PROPERTY');
+
+        const isFound = isCivic && !isLost;
+
+        const badge = getStatusBadge(ticket.status, isFound, isLost);
+
+        return (
+          <View key={ticket.id} style={styles.complaintCard}>
             {/* Clickable Card Header / Accordion Trigger */}
             <TouchableOpacity
               style={styles.cardHeaderTrigger}
@@ -95,7 +125,47 @@ export const TrackComplaintsScreen: React.FC<TrackComplaintsScreenProps> = ({
             >
               <View style={styles.cardHeaderTopRow}>
                 <View>
-                  <Text style={styles.ticketIdLabel}>SPECIFIC TICKET</Text>
+                  <View style={styles.ticketIdRow}>
+                    <Text style={styles.ticketIdLabel}>
+                      {isFound
+                        ? 'GOOD SAMARITAN REPORT'
+                        : isLost
+                        ? 'CITIZEN LOSS REPORT'
+                        : 'TRAFFIC TICKET'}
+                    </Text>
+                    <View
+                      style={
+                        isFound
+                          ? styles.foundMiniTag
+                          : isLost
+                          ? styles.lostMiniTag
+                          : styles.trafficMiniTag
+                      }
+                    >
+                      {isFound ? (
+                        <PurseIcon color="#059669" size={10} />
+                      ) : isLost ? (
+                        <SearchIcon color="#D97706" size={10} />
+                      ) : (
+                        <CarIcon color={Colors.policeNavy} size={10} />
+                      )}
+                      <Text
+                        style={
+                          isFound
+                            ? styles.foundMiniTagText
+                            : isLost
+                            ? styles.lostMiniTagText
+                            : styles.trafficMiniTagText
+                        }
+                      >
+                        {isFound
+                          ? 'FOUND ITEM (+60 PTS)'
+                          : isLost
+                          ? 'LOST PROPERTY (+25 PTS)'
+                          : 'TRAFFIC'}
+                      </Text>
+                    </View>
+                  </View>
                   <Text style={styles.ticketIdValue}>{ticket.referenceNo}</Text>
                 </View>
 
@@ -115,18 +185,36 @@ export const TrackComplaintsScreen: React.FC<TrackComplaintsScreenProps> = ({
                 </View>
               </View>
 
-              {/* Vehicle & Location summary preview */}
+              {/* Vehicle / Item & Location summary preview */}
               <View style={styles.summaryBox}>
                 <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>VEHICLE PLATE</Text>
+                  <Text style={styles.summaryLabel}>
+                    {isFound
+                      ? 'DISCOVERED ITEM'
+                      : isLost
+                      ? 'MY MISSING ITEM'
+                      : 'VEHICLE PLATE'}
+                  </Text>
                   <Text style={styles.summaryValBold}>{ticket.vehicleNumber}</Text>
                 </View>
                 <View style={styles.summaryItem}>
-                  <Text style={styles.summaryLabel}>OFFENCE TYPE</Text>
+                  <Text style={styles.summaryLabel}>
+                    {isFound
+                      ? 'FOUND CATEGORY'
+                      : isLost
+                      ? 'LOST CATEGORY'
+                      : 'OFFENCE TYPE'}
+                  </Text>
                   <Text style={styles.summaryVal}>{ticket.violationType.replace(/_/g, ' ')}</Text>
                 </View>
                 <View style={styles.summaryItemFull}>
-                  <Text style={styles.summaryLabel}>LANDMARK / STREET</Text>
+                  <Text style={styles.summaryLabel}>
+                    {isFound
+                      ? 'FOUND LOCATION ON STREET'
+                      : isLost
+                      ? 'LAST SEEN LOCATION'
+                      : 'LANDMARK / STREET'}
+                  </Text>
                   <Text style={styles.summaryVal}>{ticket.location.landmark}</Text>
                 </View>
               </View>
@@ -142,7 +230,7 @@ export const TrackComplaintsScreen: React.FC<TrackComplaintsScreenProps> = ({
               </View>
             </TouchableOpacity>
 
-            {/* Dropdown Section: Complaint Progress Timeline (Second Image) */}
+            {/* Dropdown Section: Complaint Progress Timeline */}
             {isExpanded && (
               <View style={styles.dropdownContent}>
                 <View style={styles.dropdownDivider} />
@@ -162,27 +250,58 @@ export const TrackComplaintsScreen: React.FC<TrackComplaintsScreenProps> = ({
                 {/* Optional Description */}
                 {ticket.otherDescription ? (
                   <View style={styles.descriptionBox}>
-                    <Text style={styles.summaryLabel}>CITIZEN NOTE</Text>
+                    <Text style={styles.summaryLabel}>
+                      {isLost ? 'CONFIDENTIAL PROOF OF OWNERSHIP' : 'CITIZEN NOTE'}
+                    </Text>
                     <Text style={styles.descriptionVal}>{ticket.otherDescription}</Text>
                   </View>
                 ) : null}
 
-                {/* 4-Step Vertical Progress Timeline (from second image) */}
-                <Text style={styles.timelineTitle}>Enforcement Progress Timeline</Text>
+                {/* Owner Callback Phone for Lost item reports */}
+                {ticket.ownerContact ? (
+                  <View style={styles.ownerContactBox}>
+                    <PhoneIcon color="#D97706" size={13} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.ownerContactLabel}>OWNER CALLBACK PHONE FOR CLAIM ALERTS:</Text>
+                      <Text style={styles.ownerContactVal}>{ticket.ownerContact}</Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                {/* 4-Step Vertical Progress Timeline */}
+                <Text style={styles.timelineTitle}>
+                  {isFound
+                    ? 'Police Safe Custody & Handover Timeline'
+                    : isLost
+                    ? 'Police Missing Property Search & Recovery Timeline'
+                    : 'Enforcement Progress Timeline'}
+                </Text>
                 <View style={styles.timelineContainer}>
-                  {/* Step 1: Violation Submitted */}
+                  {/* Step 1 */}
                   <View style={styles.stepRow}>
                     <View style={styles.stepIndicatorCol}>
                       <View style={[styles.stepDot, styles.stepDotCompleted]} />
                       <View style={[styles.stepLine, styles.stepLineCompleted]} />
                     </View>
                     <View style={styles.stepContent}>
-                      <Text style={styles.stepTitle}>Violation Submitted</Text>
-                      <Text style={styles.stepMeta}>{ticket.timestamp} • Uploaded via live camera</Text>
+                      <Text style={styles.stepTitle}>
+                        {isFound
+                          ? 'Found Item Registered'
+                          : isLost
+                          ? 'Loss Complaint Registered'
+                          : 'Violation Submitted'}
+                      </Text>
+                      <Text style={styles.stepMeta}>
+                        {isFound
+                          ? `${ticket.timestamp} • Uploaded via live camera with verified GPS`
+                          : isLost
+                          ? `${ticket.timestamp} • Logged with Puducherry Police Missing Desk`
+                          : `${ticket.timestamp} • Uploaded via live camera`}
+                      </Text>
                     </View>
                   </View>
 
-                  {/* Step 2: Under Police Review */}
+                  {/* Step 2 */}
                   <View style={styles.stepRow}>
                     <View style={styles.stepIndicatorCol}>
                       <View
@@ -201,14 +320,25 @@ export const TrackComplaintsScreen: React.FC<TrackComplaintsScreenProps> = ({
                       />
                     </View>
                     <View style={styles.stepContent}>
-                      <Text style={styles.stepTitle}>Under Police Review</Text>
+                      <Text style={styles.stepTitle}>
+                        {isFound
+                          ? 'Police Station Custody Verification'
+                          : isLost
+                          ? 'Active Station Cross-Matching'
+                          : 'Under Police Review'}
+                      </Text>
                       <Text style={styles.stepMeta}>
-                        {ticket.policeNote || 'Assigned to Traffic Police Control Room for verification.'}
+                        {ticket.policeNote ||
+                          (isFound
+                            ? 'Received at Police Station Lost Property Desk.'
+                            : isLost
+                            ? 'Cross-referencing with station found lockers & beat patrols.'
+                            : 'Assigned to Traffic Police Control Room for verification.')}
                       </Text>
                     </View>
                   </View>
 
-                  {/* Step 3: e-Challan Issuance */}
+                  {/* Step 3 */}
                   <View style={styles.stepRow}>
                     <View style={styles.stepIndicatorCol}>
                       <View
@@ -229,16 +359,30 @@ export const TrackComplaintsScreen: React.FC<TrackComplaintsScreenProps> = ({
                       />
                     </View>
                     <View style={styles.stepContent}>
-                      <Text style={styles.stepTitle}>e-Challan Issuance</Text>
+                      <Text style={styles.stepTitle}>
+                        {isFound
+                          ? 'Safe Custody & Public Notice'
+                          : isLost
+                          ? 'Match with Deposited Property'
+                          : 'e-Challan Issuance'}
+                      </Text>
                       <Text style={styles.stepMeta}>
-                        {ticket.challanNumber
+                        {isFound
+                          ? ticket.challanNumber
+                            ? `Station Locker Log #${ticket.challanNumber} • Public notice published`
+                            : 'Secured in station locker awaiting claimant'
+                          : isLost
+                          ? ticket.challanNumber
+                            ? `Matched with Good Samaritan Deposit #${ticket.challanNumber}`
+                            : 'Searching across Puducherry station lockers & public bulletins'
+                          : ticket.challanNumber
                           ? `Challan #${ticket.challanNumber} (MVA Sec 122)`
                           : 'Pending police officer confirmation'}
                       </Text>
                     </View>
                   </View>
 
-                  {/* Step 4: Enforcement Complete */}
+                  {/* Step 4 */}
                   <View style={styles.stepRow}>
                     <View style={styles.stepIndicatorCol}>
                       <View
@@ -249,9 +393,23 @@ export const TrackComplaintsScreen: React.FC<TrackComplaintsScreenProps> = ({
                       />
                     </View>
                     <View style={styles.stepContent}>
-                      <Text style={styles.stepTitle}>Enforcement Complete</Text>
+                      <Text style={styles.stepTitle}>
+                        {isFound
+                          ? 'Claimed & Handed Over'
+                          : isLost
+                          ? 'Reunited with Owner'
+                          : 'Enforcement Complete'}
+                      </Text>
                       <Text style={styles.stepMeta}>
-                        {ticket.status === 'ENFORCEMENT_COMPLETE'
+                        {isFound
+                          ? ticket.status === 'ENFORCEMENT_COMPLETE'
+                            ? 'Owner verified via ID & item handed over with receipt'
+                            : 'Pending owner verification & handover'
+                          : isLost
+                          ? ticket.status === 'ENFORCEMENT_COMPLETE'
+                            ? 'Owner verified via private marks & retrieved from station'
+                            : 'Pending deposit match & station verification'
+                          : ticket.status === 'ENFORCEMENT_COMPLETE'
                           ? 'Obstruction cleared by towing crane'
                           : 'Pending vehicle removal / fine payment'}
                       </Text>
@@ -262,8 +420,7 @@ export const TrackComplaintsScreen: React.FC<TrackComplaintsScreenProps> = ({
             )}
           </View>
         );
-      })
-      )}
+      })}
     </ScrollView>
   );
 };
@@ -312,6 +469,79 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+  },
+  ticketIdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  civicMiniTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    borderRadius: 4,
+    paddingVertical: 1,
+    paddingHorizontal: 5,
+    gap: 3,
+  },
+  civicMiniTagText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#0284C7',
+    letterSpacing: 0.4,
+  },
+  foundMiniTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 4,
+    paddingVertical: 1,
+    paddingHorizontal: 5,
+    gap: 3,
+  },
+  foundMiniTagText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#059669',
+    letterSpacing: 0.4,
+  },
+  lostMiniTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 4,
+    paddingVertical: 1,
+    paddingHorizontal: 5,
+    gap: 3,
+  },
+  lostMiniTagText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#D97706',
+    letterSpacing: 0.4,
+  },
+  trafficMiniTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 4,
+    paddingVertical: 1,
+    paddingHorizontal: 5,
+    gap: 3,
+  },
+  trafficMiniTagText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: Colors.policeNavy,
+    letterSpacing: 0.4,
   },
   ticketIdLabel: {
     fontSize: 9,
@@ -442,6 +672,29 @@ const styles = StyleSheet.create({
     marginTop: 2,
     lineHeight: 16,
   },
+  ownerContactBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFBEB',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    gap: 8,
+  },
+  ownerContactLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#92400E',
+    letterSpacing: 0.4,
+  },
+  ownerContactVal: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#B45309',
+    marginTop: 1,
+  },
   timelineTitle: {
     fontSize: 12,
     fontWeight: '800',
@@ -548,38 +801,5 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: Colors.policeNavy,
     letterSpacing: 0.3,
-  },
-  emptyCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    marginTop: 8,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: Colors.policeNavyDark,
-    marginBottom: 8,
-  },
-  emptySub: {
-    fontSize: 13,
-    color: '#64748B',
-    textAlign: 'center',
-    lineHeight: 18,
-    marginBottom: 16,
-  },
-  emptyActionBtn: {
-    backgroundColor: Colors.policeNavy,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-  },
-  emptyActionText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '800',
   },
 });

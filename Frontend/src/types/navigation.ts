@@ -4,6 +4,8 @@
 
 export type TabType = 'parking' | 'report' | 'tickets' | 'alerts';
 
+export type ReportDomain = 'TRAFFIC' | 'CIVIC_LOST_FOUND';
+
 export type ViolationCategory = 
   | 'NO_PARKING_ZONE'
   | 'FOOTPATH_BLOCKED'
@@ -11,6 +13,12 @@ export type ViolationCategory =
   | 'GATE_BLOCKED'
   | 'BUS_STOP_OBSTRUCTION'
   | 'WRONG_SIDE'
+  // Civic & Lost / Found Categories
+  | 'FOUND_PURSE_VALUABLE'
+  | 'FOUND_DOCUMENTS'
+  | 'LOST_PROPERTY'
+  | 'ROAD_HAZARD'
+  | 'UNATTENDED_OBJECT'
   | 'OTHERS';
 
 export interface LocationData {
@@ -24,9 +32,12 @@ export interface LocationData {
 export interface ViolationReport {
   id: string;
   referenceNo: string;
+  reportDomain?: ReportDomain;
+  civicFlowType?: 'FOUND' | 'LOST';
+  ownerContact?: string;
   photoUri: string | null;
   location: LocationData;
-  vehicleNumber: string;
+  vehicleNumber: string; // In traffic: plate number. In civic/lost: item title (e.g. "Leather Purse / Wallet")
   violationType: ViolationCategory;
   otherDescription?: string;
   timestamp: string;

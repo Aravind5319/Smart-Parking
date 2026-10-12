@@ -580,3 +580,84 @@ export const extractNumberPlateFromImage = async (
 
   return Promise.race([performOcr(), timeoutPromise]);
 };
+
+// ============================================================================
+// REAL-TIME NUMBER PLATE TARGET BOX DETECTION
+// - Scans specifically the center bounding box where user aligns license plate
+// - Fast downscaled contrast pass designed for continuous live camera streams
+// ============================================================================
+export const detectPlateInTargetBox = async (
+  video: HTMLVideoElement
+): Promise<OcrResult> => {
+  if (typeof window === 'undefined' || !video || !video.videoWidth || !video.videoHeight) {
+    return { detected: false, plateNumber: '' };
+  }
+
+  const timeoutPromise = new Promise<OcrResult>((resolve) => {
+    setTimeout(() => resolve({ detected: false, plateNumber: '' }), 2000);
+  });
+
+  const performBoxScan = async (): Promise<OcrResult> => {
+    try {
+      const Tesseract = await loadTesseract();
+      const canvas = document.createElement('canvas');
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+
+      // Center target box coordinates matching the compact UI targeting reticle
+      const sx = Math.round(vw * 0.18);
+      const sy = Math.round(vh * 0.40);
+      const sw = Math.round(vw * 0.64);
+      const sh = Math.round(vh * 0.20);
+
+      const targetW = 420;
+      const targetH = Math.round((sh * targetW) / sw);
+      canvas.width = targetW;
+      canvas.height = targetH;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return { detected: false, plateNumber: '' };
+
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(video, sx, sy, sw, sh, 0, 0, targetW, targetH);
+
+      // Contrast & unsharp sharpening
+      try {
+        const imgData = ctx.getImageData(0, 0, targetW, targetH);
+        const d = imgData.data;
+        for (let i = 0; i < d.length; i += 4) {
+          const gray = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          const contrast = 1.45;
+          const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+          const adjusted = Math.min(255, Math.max(0, factor * (gray - 128) + 128));
+          d[i] = adjusted;
+          d[i + 1] = adjusted;
+          d[i + 2] = adjusted;
+        }
+        ctx.putImageData(imgData, 0, 0);
+        applyConvolutionSharpen(ctx, targetW, targetH);
+      } catch (e) {}
+
+      const dataUrl = canvas.toDataURL('image/png');
+      const ocrRes = await Tesseract.recognize(dataUrl, 'eng', { logger: () => {} });
+      const rawText = ocrRes?.data?.text || '';
+      const parsed = parseIndianPlateFromText(rawText);
+
+      if (parsed) {
+        return {
+          detected: true,
+          plateNumber: parsed.plate,
+          confidence: parsed.confidence,
+          rawText,
+        };
+      }
+
+      return { detected: false, plateNumber: '', rawText };
+    } catch (err) {
+      return { detected: false, plateNumber: '' };
+    }
+  };
+
+  return Promise.race([performBoxScan(), timeoutPromise]);
+};

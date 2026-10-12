@@ -492,6 +492,75 @@ export const CheckCircleIcon: React.FC<IconProps> = ({ color = '#10B981', size =
   return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
 };
 
+
+// 36. Purse / Wallet / Lost Belonging Icon
+export const PurseIcon: React.FC<IconProps> = ({ color = '#D97706', size = 16, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <rect x="2" y="6" width="20" height="14" rx="3" />
+        <path d="M16 13a2 2 0 1 0 4 0" />
+        <path d="M2 10h20" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 37. Key / Documents / Found ID Icon
+export const KeyIcon: React.FC<IconProps> = ({ color = '#0284C7', size = 16, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <circle cx="7.5" cy="15.5" r="4.5" />
+        <path d="m21 3-9.5 9.5" />
+        <path d="m15.5 7.5 3 3" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 38. Hazard / Debris / Road Condition Icon
+export const HazardIcon: React.FC<IconProps> = ({ color = '#EF4444', size = 16, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+        <line x1="12" y1="9" x2="12" y2="13" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 39. Telephone / Police Helpline Icon
+export const PhoneIcon: React.FC<IconProps> = ({ color = '#1E3A8A', size = 16, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 40. Upload Document / Photo Icon
+export const UploadIcon: React.FC<IconProps> = ({ color = '#1E3A8A', size = 16, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="17 8 12 3 7 8" />
+        <line x1="12" y1="3" x2="12" y2="15" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
 const styles = StyleSheet.create({
   fallbackBox: {
     borderWidth: 1.5,

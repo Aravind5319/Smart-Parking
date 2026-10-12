@@ -20,7 +20,7 @@ import {
   Platform,
 } from 'react-native';
 import { Colors } from '../../theme/colors';
-import { LocationData, ViolationCategory, ViolationReport } from '../../types/navigation';
+import { LocationData, ViolationCategory, ViolationReport, ReportDomain } from '../../types/navigation';
 import {
   PlusIcon,
   CameraIcon,
@@ -37,9 +37,15 @@ import {
   GateIcon,
   BusIcon,
   FileTextIcon,
+  PurseIcon,
+  KeyIcon,
+  HazardIcon,
+  SearchIcon,
+  PhoneIcon,
+  UploadIcon,
 } from '../../components/common/Icons';
 import { requestRealLocation } from '../../services/realLocation';
-import { extractNumberPlateFromImage } from '../../services/plateOcr';
+import { extractNumberPlateFromImage, detectPlateInTargetBox } from '../../services/plateOcr';
 
 interface ReportViolationScreenProps {
   onSubmitSuccess: (report: ViolationReport) => void;
@@ -88,7 +94,75 @@ const VIOLATION_OPTIONS: {
   },
   {
     key: 'OTHERS',
-    label: 'Others',
+    label: 'Other Traffic Violation',
+    renderIcon: ({ color }) => <FileTextIcon color={color} size={16} />,
+  },
+];
+
+const FOUND_OPTIONS: {
+  key: ViolationCategory;
+  label: string;
+  renderIcon: (props: { color: string }) => React.ReactNode;
+  isSevere?: boolean;
+}[] = [
+  {
+    key: 'FOUND_PURSE_VALUABLE',
+    label: 'Found Purse / Wallet on Road',
+    renderIcon: ({ color }) => <PurseIcon color={color} size={16} />,
+  },
+  {
+    key: 'FOUND_DOCUMENTS',
+    label: 'Found ID / Documents / Keys',
+    renderIcon: ({ color }) => <KeyIcon color={color} size={16} />,
+  },
+  {
+    key: 'UNATTENDED_OBJECT',
+    label: 'Unattended Bag / Object',
+    renderIcon: ({ color }) => <WarningIcon color={color} size={16} />,
+    isSevere: true,
+  },
+  {
+    key: 'ROAD_HAZARD',
+    label: 'Road Hazard / Pothole / Debris',
+    renderIcon: ({ color }) => <HazardIcon color={color} size={16} />,
+    isSevere: true,
+  },
+  {
+    key: 'OTHERS',
+    label: 'Other Found Property',
+    renderIcon: ({ color }) => <FileTextIcon color={color} size={16} />,
+  },
+];
+
+const LOST_OPTIONS: {
+  key: ViolationCategory;
+  label: string;
+  renderIcon: (props: { color: string }) => React.ReactNode;
+  isSevere?: boolean;
+}[] = [
+  {
+    key: 'LOST_PROPERTY',
+    label: 'Lost Purse / Handbag',
+    renderIcon: ({ color }) => <PurseIcon color={color} size={16} />,
+  },
+  {
+    key: 'FOUND_DOCUMENTS',
+    label: 'Lost Wallet & ID Cards',
+    renderIcon: ({ color }) => <KeyIcon color={color} size={16} />,
+  },
+  {
+    key: 'FOUND_PURSE_VALUABLE',
+    label: 'Lost Keys / Vehicle Key Fob',
+    renderIcon: ({ color }) => <KeyIcon color={color} size={16} />,
+  },
+  {
+    key: 'UNATTENDED_OBJECT',
+    label: 'Lost Mobile Phone / Device',
+    renderIcon: ({ color }) => <WarningIcon color={color} size={16} />,
+  },
+  {
+    key: 'OTHERS',
+    label: 'Other Missing Belonging',
     renderIcon: ({ color }) => <FileTextIcon color={color} size={16} />,
   },
 ];
@@ -115,15 +189,27 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
   const [plateNumber, setPlateNumber] = useState('');
 
   // Form States
+  const [reportDomain, setReportDomain] = useState<ReportDomain>('TRAFFIC');
+  const [civicFlowType, setCivicFlowType] = useState<'FOUND' | 'LOST'>('FOUND');
+  const [ownerContact, setOwnerContact] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ViolationCategory>('NO_PARKING_ZONE');
   const [otherDescription, setOtherDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Real-time Number Plate Targeting & Focus Lock States
+  const [isPlateFocused, setIsPlateFocused] = useState(false);
+  const [focusedPlateNumber, setFocusedPlateNumber] = useState('');
+  const [isStrictPlateLock, setIsStrictPlateLock] = useState(true); // Forces green box before capture
+  const [isLiveScanning, setIsLiveScanning] = useState(false);
+  const [cameraViewMode, setCameraViewMode] = useState<'contain' | 'cover'>('contain'); // 'contain' provides 100% full sensor coverage without cropping
+  const liveScanIntervalRef = useRef<any>(null);
 
   // DOM / Media References (for Web Camera)
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const lostFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Notify parent to hide floating tab bar when camera is active
   useEffect(() => {
@@ -131,7 +217,7 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
     onCameraActiveChange?.(isCamOrPrompt);
   }, [step, onCameraActiveChange]);
 
-  // Clean up camera stream when component unmounts
+  // Clean up camera stream and OCR scanner when component unmounts
   useEffect(() => {
     return () => {
       stopCameraStream();
@@ -150,7 +236,48 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
     }
   }, [step, isCameraStreaming]);
 
+  // Continuous OCR Plate Scanning on live camera viewfinder targeting box
+  useEffect(() => {
+    if (step === 'CAMERA' && isCameraStreaming && !capturedPhoto) {
+      const interval = setInterval(async () => {
+        if (
+          videoRef.current &&
+          videoRef.current.videoWidth > 0 &&
+          !isLiveScanning &&
+          !isPlateFocused
+        ) {
+          try {
+            setIsLiveScanning(true);
+            const res = await detectPlateInTargetBox(videoRef.current);
+            if (res.detected && res.plateNumber) {
+              setIsPlateFocused(true);
+              setFocusedPlateNumber(res.plateNumber);
+            }
+          } catch (err) {
+            // Continue scanning
+          } finally {
+            setIsLiveScanning(false);
+          }
+        }
+      }, 1300);
+
+      liveScanIntervalRef.current = interval;
+      return () => {
+        clearInterval(interval);
+      };
+    } else {
+      if (liveScanIntervalRef.current) {
+        clearInterval(liveScanIntervalRef.current);
+        liveScanIntervalRef.current = null;
+      }
+    }
+  }, [step, isCameraStreaming, capturedPhoto, isLiveScanning, isPlateFocused]);
+
   const stopCameraStream = () => {
+    if (liveScanIntervalRef.current) {
+      clearInterval(liveScanIntervalRef.current);
+      liveScanIntervalRef.current = null;
+    }
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((track) => track.stop());
       mediaStreamRef.current = null;
@@ -164,6 +291,8 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
   const startCamera = async (overrideFacing?: 'environment' | 'user') => {
     setCameraError(null);
     setCapturedPhoto(null);
+    setIsPlateFocused(false);
+    setFocusedPlateNumber('');
     setStep('CAMERA');
     stopCameraStream();
 
@@ -173,12 +302,12 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
       try {
         let stream: MediaStream | null = null;
         try {
-          // Attempt target facingMode (rear on mobile or requested)
+          // Request native camera stream without forced aspect ratio so full field-of-view is preserved
           stream = await navigator.mediaDevices.getUserMedia({
             video: {
               facingMode: { ideal: targetFacing },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
+              width: { min: 640, ideal: 1920 },
+              height: { min: 480, ideal: 1080 },
             },
             audio: false,
           });
@@ -218,7 +347,46 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
     startCamera(nextMode);
   };
 
+  // Tap targeting box to test/toggle green focus lock on demand (for presentations & indoor testing)
+  const handleToggleDemoFocus = () => {
+    if (isPlateFocused) {
+      setIsPlateFocused(false);
+      setFocusedPlateNumber('');
+    } else {
+      setIsPlateFocused(true);
+      setFocusedPlateNumber('PY-01-BK-4589');
+    }
+  };
+
   const handleCaptureSnapshot = () => {
+    // If Strict Plate Lock is enabled and plate is not focused in TRAFFIC mode, force the user to focus!
+    if (reportDomain === 'TRAFFIC' && isStrictPlateLock && !isPlateFocused) {
+      Alert.alert(
+        'Focus Number Plate (Box is Red)',
+        'Vehicle registration plate is not detected inside the target box.\n\nPlease align the vehicle plate until the box turns GREEN to capture.\n\n(Tip: Tap the box to test Green lock, or disable Strict Lock using the toggle at the top).',
+        [
+          {
+            text: 'Simulate Green Lock',
+            onPress: () => {
+              setIsPlateFocused(true);
+              setFocusedPlateNumber('TN-09-BY-9726');
+            },
+          },
+          {
+            text: 'Turn Off Strict Lock',
+            onPress: () => {
+              setIsStrictPlateLock(false);
+            },
+          },
+          {
+            text: 'OK (Align Plate)',
+            style: 'cancel',
+          },
+        ]
+      );
+      return;
+    }
+
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
@@ -234,8 +402,22 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
         setCapturedPhoto(dataUrl);
         stopCameraStream();
 
-        // Trigger Real OCR in background
-        triggerPlateExtraction(dataUrl);
+        if (reportDomain === 'TRAFFIC') {
+          // If plate was already verified in the live green target box, prefill it directly!
+          if (isPlateFocused && focusedPlateNumber) {
+            setPlateNumber(focusedPlateNumber);
+            setOcrFound(true);
+            setIsOcrProcessing(false);
+          } else {
+            // Trigger fallback OCR in background
+            triggerPlateExtraction(dataUrl);
+          }
+        } else {
+          // In Civic / Lost & Found mode, prefill item description if empty
+          if (!plateNumber || plateNumber.startsWith('TN-') || plateNumber.startsWith('PY-')) {
+            setPlateNumber('Found Leather Purse / Wallet');
+          }
+        }
       }
     }
   };
@@ -251,6 +433,29 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
           setCapturedPhoto(dataUrl);
           stopCameraStream();
           triggerPlateExtraction(dataUrl);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Upload optional photo for lost belongings complaint
+  const handleLostFilePicked = (event: any) => {
+    const file = event?.target?.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e?.target?.result as string;
+        if (dataUrl) {
+          setCivicFlowType('LOST');
+          setSelectedCategory('LOST_PROPERTY');
+          if (!plateNumber || plateNumber.startsWith('TN-') || plateNumber.startsWith('PY-') || plateNumber.startsWith('Found')) {
+            setPlateNumber('Lost Black Leather Wallet');
+          }
+          setCapturedPhoto(dataUrl);
+          if (step === 'INITIAL') {
+            setStep('LOCATION_PROMPT');
+          }
         }
       };
       reader.readAsDataURL(file);
@@ -349,12 +554,51 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
     );
   };
 
+  const handleSelectDomain = (domain: ReportDomain) => {
+    setReportDomain(domain);
+    if (domain === 'CIVIC_LOST_FOUND') {
+      if (civicFlowType === 'FOUND') {
+        setSelectedCategory('FOUND_PURSE_VALUABLE');
+        setPlateNumber('Found Brown Leather Purse');
+      } else {
+        setSelectedCategory('LOST_PROPERTY');
+        setPlateNumber('Lost Black Leather Wallet');
+      }
+    } else {
+      setSelectedCategory('NO_PARKING_ZONE');
+      setPlateNumber('TN-09-BY-9726');
+    }
+  };
+
+  const handleSelectCivicFlow = (flow: 'FOUND' | 'LOST') => {
+    setCivicFlowType(flow);
+    setReportDomain('CIVIC_LOST_FOUND');
+    if (flow === 'FOUND') {
+      setSelectedCategory('FOUND_PURSE_VALUABLE');
+      setPlateNumber('Found Brown Leather Purse');
+    } else {
+      setSelectedCategory('LOST_PROPERTY');
+      setPlateNumber('Lost Black Leather Wallet');
+    }
+  };
+
   // ==========================================================================
   // FINAL SUBMISSION
   // ==========================================================================
   const handleFinalSubmit = () => {
     if (!plateNumber.trim()) {
-      Alert.alert('Plate Number Required', 'Please confirm or type the vehicle registration number.');
+      Alert.alert(
+        reportDomain === 'TRAFFIC'
+          ? 'Plate Number Required'
+          : civicFlowType === 'FOUND'
+          ? 'Found Item Title Required'
+          : 'Lost Item Description Required',
+        reportDomain === 'TRAFFIC'
+          ? 'Please confirm or type the vehicle registration number.'
+          : civicFlowType === 'FOUND'
+          ? 'Please enter a title or description of the discovered item.'
+          : 'Please enter a description of your missing property.'
+      );
       return;
     }
 
@@ -366,80 +610,201 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
     setIsSubmitting(true);
 
     setTimeout(() => {
+      const isTraffic = reportDomain === 'TRAFFIC';
+      let refPrefix = 'PUD-TRF-2026';
+      if (!isTraffic) {
+        refPrefix = civicFlowType === 'FOUND' ? 'PUD-FND-2026' : 'PUD-LST-2026';
+      }
+
       const newReport: ViolationReport = {
         id: `rep-${Date.now()}`,
-        referenceNo: `PUD-TRF-2026-X${Math.floor(100 + Math.random() * 900)}`,
+        referenceNo: `${refPrefix}-X${Math.floor(100 + Math.random() * 900)}`,
+        reportDomain,
+        civicFlowType: !isTraffic ? civicFlowType : undefined,
+        ownerContact: !isTraffic && civicFlowType === 'LOST' ? ownerContact.trim() : undefined,
         photoUri: capturedPhoto,
         location: currentLoc,
-        vehicleNumber: plateNumber.toUpperCase().trim(),
+        vehicleNumber: isTraffic ? plateNumber.toUpperCase().trim() : plateNumber.trim(),
         violationType: selectedCategory,
-        otherDescription: selectedCategory === 'OTHERS' ? otherDescription : undefined,
+        otherDescription: otherDescription.trim() || undefined,
         timestamp: 'Just now',
         status: 'SUBMITTED',
-        karmaPoints: 50,
-        policeNote: 'Awaiting review by Puducherry Traffic Control Room.',
+        karmaPoints: isTraffic ? 50 : civicFlowType === 'FOUND' ? 60 : 25,
+        policeNote: isTraffic
+          ? 'Awaiting review by Puducherry Traffic Control Room.'
+          : civicFlowType === 'FOUND'
+          ? 'Registered at Police Station Lost Property Desk for safe custody.'
+          : 'Lost property registered for active police station matching.',
       };
 
       setIsSubmitting(false);
       setStep('INITIAL');
       setCapturedPhoto(null);
       setOtherDescription('');
+      setOwnerContact('');
       onSubmitSuccess(newReport);
     }, 600);
   };
 
   // ==========================================================================
-  // 1. INITIAL SCREEN (PLUS ICON + CAMERA HERO)
+  // 1. INITIAL SCREEN (PLUS ICON + CAMERA HERO + 2-WAY SELECTOR)
   // ==========================================================================
   if (step === 'INITIAL') {
+    const isTraffic = reportDomain === 'TRAFFIC';
+
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.initialContentContainer}>
-        <View style={styles.heroBox}>
+        {/* Domain Switcher Pill Bar (Strictly 2 Options) */}
+        <View style={styles.domainSelector}>
           <TouchableOpacity
-            style={styles.plusCameraHeroButton}
-            onPress={() => startCamera()}
+            style={[styles.domainTab, isTraffic && styles.domainTabActive]}
+            onPress={() => handleSelectDomain('TRAFFIC')}
             activeOpacity={0.8}
           >
-            <View style={styles.plusCameraCircle}>
-              <PlusIcon color={Colors.policeNavy} size={22} strokeWidth={3} />
-              <View style={{ marginLeft: 6 }}>
-                <CameraIcon color={Colors.policeNavy} size={26} strokeWidth={2} />
-              </View>
-            </View>
-            <Text style={styles.plusHeroTitle}>Report New Violation</Text>
-            <Text style={styles.plusHeroSub}>Tap to open real camera and snap evidence</Text>
+            <CarIcon color={isTraffic ? '#FFFFFF' : '#64748B'} size={14} />
+            <Text style={[styles.domainTabText, isTraffic && styles.domainTabTextActive]}>
+              Traffic Violation
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.domainTab, !isTraffic && styles.domainTabActive]}
+            onPress={() => handleSelectDomain('CIVIC_LOST_FOUND')}
+            activeOpacity={0.8}
+          >
+            <PurseIcon color={!isTraffic ? '#FFFFFF' : '#64748B'} size={14} />
+            <Text style={[styles.domainTabText, !isTraffic && styles.domainTabTextActive]}>
+              Found / Lost Belongings
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Guidelines */}
-        <View style={styles.guideCard}>
-          <Text style={styles.guideTitle}>How Citizen Reporting Works:</Text>
+        {isTraffic ? (
+          <>
+            {/* TRAFFIC VIOLATION: UNCHANGED */}
+            <View style={styles.heroBox}>
+              <TouchableOpacity
+                style={styles.plusCameraHeroButton}
+                onPress={() => startCamera()}
+                activeOpacity={0.8}
+              >
+                <View style={styles.plusCameraCircle}>
+                  <PlusIcon color={Colors.policeNavy} size={22} strokeWidth={3} />
+                  <View style={{ marginLeft: 6 }}>
+                    <CameraIcon color={Colors.policeNavy} size={26} strokeWidth={2} />
+                  </View>
+                </View>
+                <Text style={styles.plusHeroTitle}>Report Traffic Violation</Text>
+                <Text style={styles.plusHeroSub}>
+                  Tap to open real camera and snap vehicle evidence
+                </Text>
+              </TouchableOpacity>
+            </View>
 
-          <View style={styles.guideStepRow}>
-            <View style={styles.guideStepNum}><Text style={styles.guideStepNumText}>1</Text></View>
-            <Text style={styles.guideStepText}>Open live camera to snap photo of the violating vehicle.</Text>
+            {/* Traffic Guidelines */}
+            <View style={styles.guideCard}>
+              <Text style={styles.guideTitle}>How Citizen Violation Reporting Works:</Text>
+              <View style={styles.guideStepRow}>
+                <View style={styles.guideStepNum}><Text style={styles.guideStepNumText}>1</Text></View>
+                <Text style={styles.guideStepText}>Open live camera to snap photo of the violating vehicle.</Text>
+              </View>
+              <View style={styles.guideStepRow}>
+                <View style={styles.guideStepNum}><Text style={styles.guideStepNumText}>2</Text></View>
+                <Text style={styles.guideStepText}>Grant verified device GPS access to lock the exact street landmark.</Text>
+              </View>
+              <View style={styles.guideStepRow}>
+                <View style={styles.guideStepNum}><Text style={styles.guideStepNumText}>3</Text></View>
+                <Text style={styles.guideStepText}>AI OCR extracts vehicle license plate automatically for confirmation.</Text>
+              </View>
+              <View style={styles.guideStepRow}>
+                <View style={styles.guideStepNum}><Text style={styles.guideStepNumText}>4</Text></View>
+                <Text style={styles.guideStepText}>Earn +50 Civic Karma points when report is verified by Traffic Police.</Text>
+              </View>
+            </View>
+
+            <View style={styles.catchBadge}>
+              <ShieldLockIcon color="#475569" size={14} />
+              <Text style={styles.catchBadgeText}>
+                C.A.T.C.H. Anti-Fraud Active • Verified Live Capture Only
+              </Text>
+            </View>
+          </>
+        ) : (
+          <View style={styles.civicInitialWrapper}>
+            {/* FOUND BELONGINGS: ICON FOR FOUND TO CAPTURE IMAGE */}
+            <View style={styles.heroBox}>
+              <TouchableOpacity
+                style={[styles.plusCameraHeroButton, styles.foundHeroButton]}
+                onPress={() => {
+                  handleSelectCivicFlow('FOUND');
+                  startCamera();
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.plusCameraCircle, styles.foundCameraCircle]}>
+                  <PurseIcon color="#059669" size={26} strokeWidth={2.2} />
+                  <View style={{ marginLeft: 6 }}>
+                    <CameraIcon color="#059669" size={24} strokeWidth={2} />
+                  </View>
+                </View>
+                <Text style={styles.plusHeroTitle}>Report Found Item on Road</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* UNDER THE ICON: OPTION TO CHOOSE LOST BELONGINGS TO REGISTER COMPLAINT */}
+            <View style={styles.lostBelongingCard}>
+              <View style={styles.lostActionBtnCol}>
+                {/* Option 1: Register directly (No photo required) */}
+                <TouchableOpacity
+                  style={styles.lostRegisterDirectBtn}
+                  onPress={() => {
+                    setCivicFlowType('LOST');
+                    setSelectedCategory('LOST_PROPERTY');
+                    if (!plateNumber || plateNumber.startsWith('TN-') || plateNumber.startsWith('PY-') || plateNumber.startsWith('Found')) {
+                      setPlateNumber('Lost Black Leather Wallet');
+                    }
+                    setCapturedPhoto(null);
+                    setStep('LOCATION_PROMPT');
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <SearchIcon color="#FFFFFF" size={16} strokeWidth={2.5} />
+                  <Text style={styles.lostRegisterDirectBtnText}>Register Lost Belongings Complaint</Text>
+                </TouchableOpacity>
+
+                {/* Option 2: Upload photo of the lost item */}
+                <TouchableOpacity
+                  style={styles.lostUploadBtn}
+                  onPress={() => {
+                    setCivicFlowType('LOST');
+                    setSelectedCategory('LOST_PROPERTY');
+                    if (!plateNumber || plateNumber.startsWith('TN-') || plateNumber.startsWith('PY-') || plateNumber.startsWith('Found')) {
+                      setPlateNumber('Lost Black Leather Wallet');
+                    }
+                    if (Platform.OS === 'web') {
+                      lostFileInputRef.current?.click();
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <UploadIcon color={Colors.policeNavy} size={16} strokeWidth={2} />
+                  <Text style={styles.lostUploadBtnText}>Upload Photo of Lost Item (Optional)</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Hidden file input for web lost photo upload */}
+            {Platform.OS === 'web' && (
+              <input
+                type="file"
+                ref={lostFileInputRef as any}
+                accept="image/*"
+                onChange={handleLostFilePicked}
+                style={{ display: 'none' }}
+              />
+            )}
           </View>
-
-          <View style={styles.guideStepRow}>
-            <View style={styles.guideStepNum}><Text style={styles.guideStepNumText}>2</Text></View>
-            <Text style={styles.guideStepText}>Grant verified device GPS access to lock the exact street landmark.</Text>
-          </View>
-
-          <View style={styles.guideStepRow}>
-            <View style={styles.guideStepNum}><Text style={styles.guideStepNumText}>3</Text></View>
-            <Text style={styles.guideStepText}>AI OCR extracts vehicle license plate automatically for your confirmation.</Text>
-          </View>
-
-          <View style={styles.guideStepRow}>
-            <View style={styles.guideStepNum}><Text style={styles.guideStepNumText}>4</Text></View>
-            <Text style={styles.guideStepText}>Earn +50 Civic Karma points when report is verified by Traffic Police.</Text>
-          </View>
-        </View>
-
-        <View style={styles.catchBadge}>
-          <ShieldLockIcon color="#475569" size={14} />
-          <Text style={styles.catchBadgeText}>C.A.T.C.H. Anti-Fraud Active • Verified Live Capture Only</Text>
-        </View>
+        )}
       </ScrollView>
     );
   }
@@ -458,11 +823,65 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
             }}
             style={styles.closeCamBtn}
           >
-            <Text style={styles.closeCamText}>Cancel</Text>
+            <Text style={styles.closeCamText}>✕ Cancel</Text>
           </TouchableOpacity>
-          <Text style={styles.cameraTitle}>Live Camera Evidence</Text>
-          <View style={styles.livePill}>
-            <Text style={styles.livePillText}>LIVE CAM</Text>
+
+          <View style={styles.topBarActions}>
+            {/* Full Viewport Coverage vs Fill Screen Toggle */}
+            <TouchableOpacity
+              style={[
+                styles.coveragePill,
+                cameraViewMode === 'contain' ? styles.coveragePillActive : styles.coveragePillInactive,
+              ]}
+              onPress={() => setCameraViewMode(cameraViewMode === 'contain' ? 'cover' : 'contain')}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.coveragePillText,
+                  cameraViewMode === 'contain' ? styles.coveragePillTextActive : styles.coveragePillTextInactive,
+                ]}
+              >
+                {cameraViewMode === 'contain' ? 'Full View (Wide)' : 'Fill'}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Strict Plate Lock Toggle Option - Only shown for Traffic */}
+            {reportDomain === 'TRAFFIC' ? (
+              <TouchableOpacity
+                style={[
+                  styles.strictLockPill,
+                  isStrictPlateLock ? styles.strictLockPillActive : styles.strictLockPillInactive,
+                ]}
+                onPress={() => setIsStrictPlateLock(!isStrictPlateLock)}
+                activeOpacity={0.8}
+              >
+                <ShieldLockIcon color={isStrictPlateLock ? '#34D399' : '#94A3B8'} size={12} />
+                <Text
+                  style={[
+                    styles.strictLockText,
+                    isStrictPlateLock ? styles.strictLockTextActive : styles.strictLockTextInactive,
+                  ]}
+                >
+                  Lock: {isStrictPlateLock ? 'ON' : 'OFF'}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.civicPillBadge}>
+                <PurseIcon color="#38BDF8" size={12} />
+                <Text style={styles.civicPillBadgeText}>Lost & Found</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={[styles.livePill, (isPlateFocused && !capturedPhoto) || reportDomain === 'CIVIC_LOST_FOUND' ? styles.livePillGreen : null]}>
+            <Text style={styles.livePillText}>
+              {reportDomain === 'CIVIC_LOST_FOUND'
+                ? 'ITEM MODE'
+                : isPlateFocused && !capturedPhoto
+                ? 'LOCKED'
+                : 'LIVE'}
+            </Text>
           </View>
         </View>
 
@@ -499,7 +918,7 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
                     left: 0,
                     width: '100%',
                     height: '100%',
-                    objectFit: 'cover',
+                    objectFit: cameraViewMode,
                     borderRadius: 12,
                     zIndex: 1,
                   }}
@@ -513,7 +932,7 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
             <Image
               source={{ uri: capturedPhoto }}
               style={[StyleSheet.absoluteFillObject, { zIndex: 5, borderRadius: 12 }]}
-              resizeMode="cover"
+              resizeMode={cameraViewMode}
             />
           )}
 
@@ -527,7 +946,7 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
                 onPress={() => fileInputRef.current?.click()}
                 activeOpacity={0.8}
               >
-                <Text style={styles.uploadTestBtnText}>Upload Vehicle Photo to Test</Text>
+                <Text style={styles.uploadTestBtnText}>Upload Evidence Photo to Test</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -543,16 +962,79 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
             />
           )}
 
-          {/* HUD Brackets */}
+          {/* HUD Outer Corner Brackets */}
           <View style={[styles.camBracket, styles.bracketTL]} />
           <View style={[styles.camBracket, styles.bracketTR]} />
           <View style={[styles.camBracket, styles.bracketBL]} />
           <View style={[styles.camBracket, styles.bracketBR]} />
 
+          {/* LIVE NUMBER PLATE OR CIVIC ITEM TARGETING RETICLE */}
+          {!capturedPhoto && isCameraStreaming && (
+            reportDomain === 'TRAFFIC' ? (
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={handleToggleDemoFocus}
+                style={[
+                  styles.plateTargetBox,
+                  isPlateFocused ? styles.plateTargetBoxGreen : styles.plateTargetBoxRed,
+                ]}
+              >
+                {/* Floating Mini Status Pill ABOVE the box */}
+                <View style={[styles.targetStatusBadge, isPlateFocused ? styles.badgeGreen : styles.badgeRed]}>
+                  {isPlateFocused ? (
+                    <>
+                      <CheckmarkIcon color="#FFFFFF" size={10} strokeWidth={3} />
+                      <Text style={styles.targetStatusTextGreen}>
+                        {focusedPlateNumber ? `LOCKED: ${focusedPlateNumber}` : 'PLATE LOCKED'}
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <WarningIcon color="#FFFFFF" size={10} />
+                      <Text style={styles.targetStatusTextRed}>
+                        AIM AT NUMBER PLATE
+                      </Text>
+                    </>
+                  )}
+                </View>
+
+                {/* Reticle Corner Marks */}
+                <View style={[styles.targetCorner, styles.targetCornerTL, isPlateFocused ? styles.cornerGreen : styles.cornerRed]} />
+                <View style={[styles.targetCorner, styles.targetCornerTR, isPlateFocused ? styles.cornerGreen : styles.cornerRed]} />
+                <View style={[styles.targetCorner, styles.targetCornerBL, isPlateFocused ? styles.cornerGreen : styles.cornerRed]} />
+                <View style={[styles.targetCorner, styles.targetCornerBR, isPlateFocused ? styles.cornerGreen : styles.cornerRed]} />
+
+                {/* Subtle Center Reticle Dot */}
+                <View style={[styles.targetCenterDot, isPlateFocused ? styles.dotGreen : styles.dotRed]} />
+
+                {/* Minimal floating hint text BELOW the box */}
+                <Text style={styles.targetHintText}>
+                  {isPlateFocused ? '✓ Shutter Unlocked' : 'Tap box to test focus'}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.itemTargetBox}>
+                <View style={styles.targetStatusBadgeCivic}>
+                  <PurseIcon color="#FFFFFF" size={11} />
+                  <Text style={styles.targetStatusTextCivic}>AIM AT FOUND ITEM / PURSE</Text>
+                </View>
+
+                <View style={[styles.targetCorner, styles.targetCornerTL, styles.cornerCivic]} />
+                <View style={[styles.targetCorner, styles.targetCornerTR, styles.cornerCivic]} />
+                <View style={[styles.targetCorner, styles.targetCornerBL, styles.cornerCivic]} />
+                <View style={[styles.targetCorner, styles.targetCornerBR, styles.cornerCivic]} />
+
+                <Text style={styles.targetHintText}>Frame item in center & tap shutter</Text>
+              </View>
+            )
+          )}
+
           {/* Status Watermark */}
           <View style={styles.camWatermark}>
             <Text style={styles.camWatermarkText}>
-              PUDUCHERRY TRAFFIC POLICE • {capturedPhoto ? 'SNAPSHOT CAPTURED' : 'STREAMING LIVE'}
+              {reportDomain === 'TRAFFIC'
+                ? `PUDUCHERRY TRAFFIC POLICE • ${capturedPhoto ? 'SNAPSHOT CAPTURED' : isPlateFocused ? 'PLATE LOCKED' : 'STREAMING LIVE'}`
+                : `PUDUCHERRY POLICE LOST & FOUND • ${capturedPhoto ? 'SNAPSHOT CAPTURED' : 'STREAMING LIVE'}`}
             </Text>
           </View>
         </View>
@@ -574,11 +1056,27 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
 
                 {/* 2. Main Shutter Button */}
                 <TouchableOpacity
-                  style={styles.shutterButton}
+                  style={[
+                    styles.shutterButton,
+                    isStrictPlateLock && !isPlateFocused
+                      ? styles.shutterButtonLocked
+                      : isPlateFocused
+                      ? styles.shutterButtonReady
+                      : null,
+                  ]}
                   onPress={handleCaptureSnapshot}
                   activeOpacity={0.8}
                 >
-                  <View style={styles.shutterInner} />
+                  <View
+                    style={[
+                      styles.shutterInner,
+                      isStrictPlateLock && !isPlateFocused
+                        ? styles.shutterInnerLocked
+                        : isPlateFocused
+                        ? styles.shutterInnerReady
+                        : null,
+                    ]}
+                  />
                 </TouchableOpacity>
 
                 {/* 3. Switch Camera (Rear / Front) */}
@@ -591,13 +1089,32 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
                   <Text style={styles.camAuxLabel}>{facingMode === 'environment' ? 'Front Cam' : 'Rear Cam'}</Text>
                 </TouchableOpacity>
               </View>
-              <Text style={styles.shutterLabel}>Tap Shutter to Snap • or Upload Photo</Text>
+              <Text
+                style={[
+                  styles.shutterLabel,
+                  isStrictPlateLock && !isPlateFocused
+                    ? styles.shutterLockNotice
+                    : isPlateFocused
+                    ? styles.shutterReadyNotice
+                    : null,
+                ]}
+              >
+                {isStrictPlateLock && !isPlateFocused
+                  ? '⚠️ Plate Not Detected • Turn Box Green to Snap (Tap box)'
+                  : isPlateFocused
+                  ? '✓ Plate Focused • Tap Shutter to Snap Evidence'
+                  : 'Tap Shutter to Snap • or Upload Photo'}
+              </Text>
             </View>
           ) : (
             <View style={styles.cameraActionRow}>
               <TouchableOpacity
                 style={styles.retakeButton}
-                onPress={() => startCamera()}
+                onPress={() => {
+                  setIsPlateFocused(false);
+                  setFocusedPlateNumber('');
+                  startCamera();
+                }}
                 activeOpacity={0.7}
               >
                 <RefreshIcon color="#FFFFFF" size={15} />
@@ -698,16 +1215,59 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
   // ==========================================================================
   // 4. DETAILS CONFIRMATION FORM
   // ==========================================================================
+  const isTraffic = reportDomain === 'TRAFFIC';
+  const isFound = !isTraffic && civicFlowType === 'FOUND';
+  const isLost = !isTraffic && civicFlowType === 'LOST';
+  const activeOptions = isTraffic
+    ? VIOLATION_OPTIONS
+    : isFound
+    ? FOUND_OPTIONS
+    : LOST_OPTIONS;
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
+      {/* Domain Switcher Pill Bar (Strictly 2 Options) */}
+      <View style={styles.domainSelector}>
+        <TouchableOpacity
+          style={[styles.domainTab, isTraffic && styles.domainTabActive]}
+          onPress={() => handleSelectDomain('TRAFFIC')}
+          activeOpacity={0.8}
+        >
+          <CarIcon color={isTraffic ? '#FFFFFF' : '#64748B'} size={14} />
+          <Text style={[styles.domainTabText, isTraffic && styles.domainTabTextActive]}>
+            Traffic Violation
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.domainTab, !isTraffic && styles.domainTabActive]}
+          onPress={() => handleSelectDomain('CIVIC_LOST_FOUND')}
+          activeOpacity={0.8}
+        >
+          <PurseIcon color={!isTraffic ? '#FFFFFF' : '#64748B'} size={14} />
+          <Text style={[styles.domainTabText, !isTraffic && styles.domainTabTextActive]}>
+            Found / Lost Belongings
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Real Evidence Snapshot & GPS card */}
       <View style={styles.summaryCard}>
         <View style={styles.summaryTopRow}>
           {capturedPhoto ? (
             <Image source={{ uri: capturedPhoto }} style={styles.thumbImage} resizeMode="cover" />
           ) : (
-            <View style={styles.thumbBox}>
-              <CarIcon color="#60A5FA" size={30} />
+            <View style={[styles.thumbBox, isLost && styles.thumbBoxLostNoPhoto]}>
+              {isTraffic ? (
+                <CarIcon color="#60A5FA" size={30} />
+              ) : isFound ? (
+                <PurseIcon color="#10B981" size={30} />
+              ) : (
+                <View style={styles.noPhotoThumbInner}>
+                  <SearchIcon color="#D97706" size={24} />
+                  <Text style={styles.noPhotoTagText}>NO PHOTO</Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -715,7 +1275,7 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
             <View style={styles.gpsLockTag}>
               <LocationPinIcon color={Colors.parkingGreenBorder} size={11} />
               <Text style={styles.gpsLockText}>
-                GPS LOCKED (±{currentLoc?.accuracy || 4}m)
+                {isLost ? 'LAST-SEEN GPS LOCKED' : `GPS LOCKED (±${currentLoc?.accuracy || 4}m)`}
               </Text>
             </View>
             <Text style={styles.lockedLandmark} numberOfLines={2}>
@@ -726,72 +1286,98 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
         </View>
       </View>
 
-      {/* Real AI OCR Plate Recognition */}
+      {/* Plate / Item Title Section */}
       <View style={styles.formSection}>
         <View style={styles.plateHeaderRow}>
-          <Text style={styles.sectionTitle}>Detected Number Plate</Text>
-          {isOcrProcessing ? (
-            <View style={styles.aiTagProcessing}>
-              <ActivityIndicator size="small" color="#1D4ED8" />
-              <Text style={styles.aiTagProcessingText}>Scanning Plate...</Text>
-            </View>
-          ) : ocrFound ? (
-            <View style={styles.aiTag}>
-              <CheckmarkIcon color={'#1D4ED8'} size={11} strokeWidth={2.5} />
-              <Text style={styles.aiTagText}>AI OCR EXTRACTED</Text>
-            </View>
-          ) : (
-            <View style={styles.aiTagManual}>
-              <Text style={styles.aiTagManualText}>MANUAL CONFIRM</Text>
-            </View>
-          )}
+          <Text style={styles.sectionTitle}>
+            {isTraffic
+              ? 'Detected Number Plate'
+              : isFound
+              ? 'Found Item Description'
+              : 'My Missing Item / Property Title'}
+          </Text>
+          {isTraffic ? (
+            isOcrProcessing ? (
+              <View style={styles.aiTagProcessing}>
+                <ActivityIndicator size="small" color="#1D4ED8" />
+                <Text style={styles.aiTagProcessingText}>Scanning Plate...</Text>
+              </View>
+            ) : ocrFound ? (
+              <View style={styles.aiTag}>
+                <CheckmarkIcon color={'#1D4ED8'} size={11} strokeWidth={2.5} />
+                <Text style={styles.aiTagText}>AI OCR EXTRACTED</Text>
+              </View>
+            ) : (
+              <View style={styles.aiTagManual}>
+                <Text style={styles.aiTagManualText}>MANUAL CONFIRM</Text>
+              </View>
+            )
+          ) : null}
         </View>
 
         <Text style={styles.formSubtitle}>
-          {ocrFound
-            ? 'License plate detected from photo. Confirm or adjust if needed:'
-            : isOcrProcessing
-            ? 'Running neural OCR on captured photo...'
-            : 'No vehicle plate detected in photo. Please enter registration number manually:'}
+          {isTraffic
+            ? ocrFound
+              ? 'License plate detected from photo. Confirm or adjust if needed:'
+              : isOcrProcessing
+              ? 'Running neural OCR on captured photo...'
+              : 'No vehicle plate detected in photo. Please enter registration number manually:'
+            : isFound
+            ? 'Confirm the item you discovered on the road to deposit at the nearest police station:'
+            : 'Describe your missing belonging so police and matched community notices can locate it:'}
         </Text>
 
         <TextInput
           style={styles.plateInput}
           value={plateNumber}
           onChangeText={setPlateNumber}
-          placeholder="e.g. PY 01 BK 4589"
+          placeholder={
+            isTraffic
+              ? 'e.g. PY 01 BK 4589'
+              : isFound
+              ? 'e.g. Found Brown Leather Purse with Cash & ATM Card'
+              : 'e.g. Lost Black Leather Wallet with Driving License'
+          }
           placeholderTextColor={Colors.textMuted}
-          autoCapitalize="characters"
+          autoCapitalize={isTraffic ? 'characters' : 'sentences'}
         />
-        <Text style={styles.plateFormatHelp}>Standard Indian format: [State Code] [District] [Series] [Digits]</Text>
+        <Text style={styles.plateFormatHelp}>
+          {isTraffic
+            ? 'Standard Indian format: [State Code] [District] [Series] [Digits]'
+            : isFound
+            ? 'Include color, brand, or key items discovered inside (cash, cards, keys)'
+            : 'Include brand, color, model, or distinguishing features of your lost property'}
+        </Text>
 
-        {/* Quick Demo Plate Chips */}
-        <View style={styles.quickPlateRow}>
-          <Text style={styles.quickPlateLabel}>Quick Demo Plates:</Text>
-          {['TN-09-BY-9726', 'PY-01-BK-4589', 'PY-01-CH-3344', 'TN-07-CB-9081'].map((quickPlate) => (
-            <TouchableOpacity
-              key={quickPlate}
-              style={styles.quickPlateChip}
-              onPress={() => setPlateNumber(quickPlate)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.quickPlateText}>{quickPlate}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
       </View>
 
-      {/* Violation Category Selector */}
+      {/* Category Selector */}
       <View style={styles.formSection}>
-        <Text style={styles.sectionTitle}>Select Violation Category</Text>
-        <Text style={styles.formSubtitle}>Choose the category that best describes the infraction:</Text>
+        <Text style={styles.sectionTitle}>
+          {isTraffic
+            ? 'Select Violation Category'
+            : isFound
+            ? 'Select Discovered Item Category'
+            : 'Select Lost Belonging Category'}
+        </Text>
+        <Text style={styles.formSubtitle}>
+          {isTraffic
+            ? 'Choose the category that best describes the infraction:'
+            : isFound
+            ? 'Choose the category that best classifies the discovered property:'
+            : 'Choose the category that matches your missing item:'}
+        </Text>
 
         <View style={styles.chipGrid}>
-          {VIOLATION_OPTIONS.map((item) => {
+          {activeOptions.map((item) => {
             const isSelected = selectedCategory === item.key;
             const iconColor = isSelected
               ? item.isSevere
                 ? Colors.noParkingRed
+                : isFound
+                ? '#059669'
+                : isLost
+                ? '#D97706'
                 : Colors.policeNavy
               : '#64748B';
 
@@ -801,13 +1387,22 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
                 style={[
                   styles.chip,
                   isSelected && styles.chipSelected,
+                  isSelected && isFound && styles.chipFoundSelected,
+                  isSelected && isLost && styles.chipLostSelected,
                   item.isSevere && isSelected && styles.chipSevereSelected,
                 ]}
                 onPress={() => setSelectedCategory(item.key)}
                 activeOpacity={0.7}
               >
                 <View style={styles.chipIconContainer}>{item.renderIcon({ color: iconColor })}</View>
-                <Text style={[styles.chipLabel, isSelected && styles.chipLabelSelected]}>
+                <Text
+                  style={[
+                    styles.chipLabel,
+                    isSelected && styles.chipLabelSelected,
+                    isSelected && isFound && styles.chipLabelFoundSelected,
+                    isSelected && isLost && styles.chipLabelLostSelected,
+                  ]}
+                >
                   {item.label}
                 </Text>
               </TouchableOpacity>
@@ -815,18 +1410,109 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
           })}
         </View>
 
-        {selectedCategory === 'OTHERS' && (
+        {/* Description field */}
+        {(!isTraffic || selectedCategory === 'OTHERS') && (
           <View style={styles.othersContainer}>
-            <Text style={styles.othersLabel}>Violation Description (Optional):</Text>
+            <Text style={styles.othersLabel}>
+              {isTraffic
+                ? 'Violation Description (Optional):'
+                : isFound
+                ? 'Finding Marks & Exact Spot Found (Optional):'
+                : 'Secret Identifying Marks / Ownership Proof (Private):'}
+            </Text>
             <TextInput
               style={styles.othersInput}
               value={otherDescription}
               onChangeText={setOtherDescription}
-              placeholder="e.g. Broken vehicle abandoned on sidewalk..."
+              placeholder={
+                isTraffic
+                  ? 'e.g. Broken vehicle abandoned on sidewalk...'
+                  : isFound
+                  ? 'e.g. Found on pavement near Goubert Avenue; contains SBI ATM card, handed to Beat Officer...'
+                  : 'e.g. Has initials "GK" engraved inside, bill available, last seen near Beach Promenade...'
+              }
               placeholderTextColor={Colors.textMuted}
               multiline
               numberOfLines={3}
             />
+            {isLost && (
+              <Text style={styles.secretProofHelp}>
+                This information is kept confidential with police to verify authentic ownership when someone turns it in.
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Photo Upload Widget for Lost Items (Optional) */}
+        {isLost && (
+          <View style={styles.lostPhotoUploadCard}>
+            <View style={styles.lostPhotoUploadHeader}>
+              <UploadIcon color={Colors.policeNavy} size={15} />
+              <Text style={styles.lostPhotoUploadTitle}>Photo of Lost Item (Optional)</Text>
+            </View>
+            <Text style={styles.lostPhotoUploadSub}>
+              It is not necessary to provide a photo. If you have an image or bill on your device, attach it here to assist police verification:
+            </Text>
+            {capturedPhoto ? (
+              <View style={styles.lostPhotoPreviewRow}>
+                <Image source={{ uri: capturedPhoto }} style={styles.lostPhotoPreviewThumb} resizeMode="cover" />
+                <View style={styles.lostPhotoActionCol}>
+                  <TouchableOpacity
+                    style={styles.lostChangePhotoBtn}
+                    onPress={() => {
+                      if (Platform.OS === 'web') {
+                        lostFileInputRef.current?.click();
+                      }
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <UploadIcon color={Colors.policeNavy} size={13} />
+                    <Text style={styles.lostChangePhotoBtnText}>Change Photo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.removePhotoBtn}
+                    onPress={() => setCapturedPhoto(null)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.removePhotoBtnText}>Remove Photo</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.lostPhotoUploadActionBtn}
+                onPress={() => {
+                  if (Platform.OS === 'web') {
+                    lostFileInputRef.current?.click();
+                  }
+                }}
+                activeOpacity={0.8}
+              >
+                <UploadIcon color={Colors.policeNavy} size={16} />
+                <Text style={styles.lostPhotoUploadActionText}>Upload Image from Device (Optional)</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Owner Contact Phone Number (Only for Lost Item Flow) */}
+        {isLost && (
+          <View style={styles.phoneSection}>
+            <View style={styles.phoneLabelRow}>
+              <PhoneIcon color={Colors.policeNavy} size={14} />
+              <Text style={styles.phoneLabel}>Owner Callback Phone Number (Required for Claim Alerts):</Text>
+            </View>
+            <TextInput
+              style={styles.phoneInput}
+              value={ownerContact}
+              onChangeText={setOwnerContact}
+              placeholder="e.g. +91 98765 43210"
+              placeholderTextColor={Colors.textMuted}
+              keyboardType="phone-pad"
+            />
+            <Text style={styles.phoneHelp}>
+              Puducherry Police Lost Property Desk will call or SMS this number as soon as a matching item is turned in.
+            </Text>
           </View>
         )}
       </View>
@@ -839,9 +1525,30 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
         activeOpacity={0.8}
       >
         <Text style={styles.submitButtonText}>
-          {isSubmitting ? 'Transmitting to Police Control Room...' : 'Submit Report to Traffic Police'}
+          {isTraffic
+            ? isSubmitting
+              ? 'Transmitting to Police Control Room...'
+              : 'Submit Report to Traffic Police'
+            : isFound
+            ? isSubmitting
+              ? 'Registering with Lost Property Desk...'
+              : 'Log Found Item with Police Station'
+            : isSubmitting
+            ? 'Registering Missing Property with Police...'
+            : 'Register Missing Property with Police Desk'}
         </Text>
       </TouchableOpacity>
+
+      {/* Hidden file input for web lost photo upload */}
+      {Platform.OS === 'web' && (
+        <input
+          type="file"
+          ref={lostFileInputRef as any}
+          accept="image/*"
+          onChange={handleLostFilePicked}
+          style={{ display: 'none' }}
+        />
+      )}
 
       <TouchableOpacity
         style={styles.cancelSessionBtn}
@@ -1014,10 +1721,69 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     borderRadius: 4,
   },
+  livePillGreen: {
+    backgroundColor: '#10B981',
+  },
   livePillText: {
     color: '#FFFFFF',
     fontSize: 9,
     fontWeight: '800',
+  },
+  topBarActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  coveragePill: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  coveragePillActive: {
+    backgroundColor: '#1E3A8A',
+    borderColor: '#3B82F6',
+  },
+  coveragePillInactive: {
+    backgroundColor: '#1E293B',
+    borderColor: '#475569',
+  },
+  coveragePillText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  coveragePillTextActive: {
+    color: '#93C5FD',
+  },
+  coveragePillTextInactive: {
+    color: '#94A3B8',
+  },
+  strictLockPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  strictLockPillActive: {
+    backgroundColor: '#064E3B',
+    borderColor: '#10B981',
+  },
+  strictLockPillInactive: {
+    backgroundColor: '#1E293B',
+    borderColor: '#475569',
+  },
+  strictLockText: {
+    fontSize: 10,
+    fontWeight: '700',
+    marginLeft: 5,
+  },
+  strictLockTextActive: {
+    color: '#34D399',
+  },
+  strictLockTextInactive: {
+    color: '#94A3B8',
   },
   fullViewfinder: {
     flex: 1,
@@ -1088,6 +1854,136 @@ const styles = StyleSheet.create({
     borderBottomWidth: 3,
     borderRightWidth: 3,
   },
+
+  // Live Number Plate Targeting Reticle - Compact & Sleek (Minimal screen footprint)
+  plateTargetBox: {
+    position: 'absolute',
+    width: '58%',
+    maxWidth: 210,
+    height: 46,
+    borderRadius: 8,
+    borderWidth: 1.8,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
+    backgroundColor: 'transparent',
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+      },
+    }),
+  },
+  plateTargetBoxRed: {
+    borderColor: '#EF4444',
+  },
+  plateTargetBoxGreen: {
+    borderColor: '#10B981',
+    borderStyle: 'solid',
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    ...Platform.select({
+      web: {
+        boxShadow: '0 0 12px rgba(16, 185, 129, 0.4)',
+      },
+      default: {
+        shadowColor: '#10B981',
+        shadowOpacity: 0.4,
+        shadowRadius: 6,
+      },
+    }),
+  },
+  targetCorner: {
+    position: 'absolute',
+    width: 9,
+    height: 9,
+  },
+  targetCornerTL: {
+    top: -2,
+    left: -2,
+    borderTopWidth: 2.5,
+    borderLeftWidth: 2.5,
+    borderTopLeftRadius: 4,
+  },
+  targetCornerTR: {
+    top: -2,
+    right: -2,
+    borderTopWidth: 2.5,
+    borderRightWidth: 2.5,
+    borderTopRightRadius: 4,
+  },
+  targetCornerBL: {
+    bottom: -2,
+    left: -2,
+    borderBottomWidth: 2.5,
+    borderLeftWidth: 2.5,
+    borderBottomLeftRadius: 4,
+  },
+  targetCornerBR: {
+    bottom: -2,
+    right: -2,
+    borderBottomWidth: 2.5,
+    borderRightWidth: 2.5,
+    borderBottomRightRadius: 4,
+  },
+  cornerRed: {
+    borderColor: '#EF4444',
+  },
+  cornerGreen: {
+    borderColor: '#10B981',
+  },
+  targetCenterDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.6,
+  },
+  dotRed: {
+    backgroundColor: '#EF4444',
+  },
+  dotGreen: {
+    backgroundColor: '#10B981',
+  },
+  targetStatusBadge: {
+    position: 'absolute',
+    top: -23,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 2,
+    paddingHorizontal: 7,
+    borderRadius: 10,
+  },
+  badgeRed: {
+    backgroundColor: 'rgba(239, 68, 68, 0.9)',
+  },
+  badgeGreen: {
+    backgroundColor: '#10B981',
+  },
+  targetStatusTextRed: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+    marginLeft: 4,
+    letterSpacing: 0.4,
+  },
+  targetStatusTextGreen: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+    marginLeft: 4,
+    letterSpacing: 0.4,
+  },
+  targetHintText: {
+    position: 'absolute',
+    bottom: -17,
+    color: 'rgba(255, 255, 255, 0.75)',
+    fontSize: 9,
+    fontWeight: '600',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+
   camWatermark: {
     position: 'absolute',
     bottom: 10,
@@ -1153,17 +2049,45 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: '#94A3B8',
   },
+  shutterButtonLocked: {
+    borderColor: '#EF4444',
+    borderWidth: 3.5,
+  },
+  shutterButtonReady: {
+    borderColor: '#10B981',
+    borderWidth: 4,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 0 16px rgba(16, 185, 129, 0.7)',
+      },
+    }),
+  },
   shutterInner: {
     width: 56,
     height: 56,
     borderRadius: 28,
     backgroundColor: Colors.policeNavy,
   },
+  shutterInnerLocked: {
+    backgroundColor: '#991B1B',
+  },
+  shutterInnerReady: {
+    backgroundColor: '#10B981',
+  },
   shutterLabel: {
     color: '#94A3B8',
     fontSize: 11,
     marginTop: 10,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  shutterLockNotice: {
+    color: '#F87171',
+    fontWeight: '700',
+  },
+  shutterReadyNotice: {
+    color: '#34D399',
+    fontWeight: '700',
   },
   cameraActionRow: {
     flexDirection: 'row',
@@ -1596,5 +2520,564 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     fontSize: 12,
     fontWeight: '600',
+  },
+
+  // Domain Switcher Pill Bar (Traffic vs Civic / Lost & Found)
+  domainSelector: {
+    flexDirection: 'row',
+    backgroundColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
+  },
+  domainTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 9,
+    gap: 6,
+  },
+  domainTabActive: {
+    backgroundColor: Colors.policeNavy,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 2px 6px rgba(30, 58, 138, 0.25)',
+      },
+      default: {
+        shadowColor: Colors.policeNavy,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+      },
+    }),
+  },
+  domainTabText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  domainTabTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // Camera Civic Mode Pill
+  civicPillBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(2, 132, 199, 0.25)',
+    borderWidth: 1,
+    borderColor: '#38BDF8',
+    borderRadius: 14,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    gap: 4,
+  },
+  civicPillBadgeText: {
+    color: '#38BDF8',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+
+  // Camera Item Target Reticle
+  itemTargetBox: {
+    position: 'absolute',
+    width: '65%',
+    maxWidth: 240,
+    height: 140,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#38BDF8',
+    borderStyle: 'dashed',
+    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
+  },
+  targetStatusBadgeCivic: {
+    position: 'absolute',
+    top: -24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    backgroundColor: '#0284C7',
+    gap: 5,
+  },
+  targetStatusTextCivic: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+  cornerCivic: {
+    borderColor: '#38BDF8',
+  },
+
+  // Form Details Civic Tags
+  civicDeskTag: {
+    backgroundColor: '#F0F9FF',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  civicDeskTagText: {
+    color: '#0284C7',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+
+  // 2-Way Flow Selection Card in Details Confirm
+  civicFlowCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  civicFlowCardHeader: {
+    marginBottom: 12,
+  },
+  civicFlowCardTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: Colors.policeNavy,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  civicFlowCardSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  civicFlowToggleRow: {
+    gap: 10,
+  },
+  civicFlowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 12,
+    gap: 10,
+  },
+  civicFlowBtnFoundActive: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#10B981',
+  },
+  civicFlowBtnLostActive: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#F59E0B',
+  },
+  civicFlowIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  civicFlowIconCircleFoundActive: {
+    backgroundColor: '#059669',
+  },
+  civicFlowIconCircleLostActive: {
+    backgroundColor: '#D97706',
+  },
+  civicFlowBtnTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  civicFlowBtnTitleFoundActive: {
+    color: '#065F46',
+    fontWeight: '800',
+  },
+  civicFlowBtnTitleLostActive: {
+    color: '#92400E',
+    fontWeight: '800',
+  },
+  civicFlowBtnSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  civicFlowCheckBadgeFound: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#059669',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  civicFlowCheckBadgeLost: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#D97706',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Desk Tags for Form Header
+  civicDeskTagFound: {
+    backgroundColor: '#ECFDF5',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  civicDeskTagTextFound: {
+    color: '#059669',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  civicDeskTagLost: {
+    backgroundColor: '#FFFBEB',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  civicDeskTagTextLost: {
+    color: '#D97706',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+
+  // Chip Highlights for Found vs Lost
+  chipFoundSelected: {
+    borderColor: '#059669',
+    backgroundColor: '#ECFDF5',
+  },
+  chipLostSelected: {
+    borderColor: '#D97706',
+    backgroundColor: '#FFFBEB',
+  },
+  chipLabelFoundSelected: {
+    color: '#065F46',
+    fontWeight: '700',
+  },
+  chipLabelLostSelected: {
+    color: '#92400E',
+    fontWeight: '700',
+  },
+
+  // Secret Proof Note
+  secretProofHelp: {
+    fontSize: 10,
+    color: '#64748B',
+    fontStyle: 'italic',
+    marginTop: 4,
+    lineHeight: 14,
+  },
+
+  // Owner Phone Section (Lost Flow)
+  phoneSection: {
+    marginTop: 14,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  phoneLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  phoneLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.policeNavy,
+  },
+  phoneInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    fontSize: 13,
+    color: Colors.textPrimary,
+  },
+  phoneHelp: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 4,
+    lineHeight: 14,
+  },
+
+  // Official Police Notice Cards
+  policeCustodyNoticeCard: {
+    backgroundColor: '#ECFDF5',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  noticeIconCircleFound: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#D1FAE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  policeCustodyNoticeTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#065F46',
+    marginBottom: 2,
+  },
+  policeCustodyNoticeText: {
+    fontSize: 11,
+    color: '#047857',
+    lineHeight: 15,
+  },
+
+  policeLostNoticeCard: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  noticeIconCircleLost: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  policeLostNoticeTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#92400E',
+    marginBottom: 2,
+  },
+  policeLostNoticeText: {
+    fontSize: 11,
+    color: '#B45309',
+    lineHeight: 15,
+  },
+
+  // Civic Found & Lost 2-Toggle Workflow Styles
+  civicInitialWrapper: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  foundHeroButton: {
+    borderColor: '#A7F3D0',
+    backgroundColor: '#F0FDF4',
+  },
+  foundCameraCircle: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+  },
+  foundKarmaBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  foundKarmaText: {
+    color: '#047857',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+  },
+
+  // Under Found Icon: Lost Belongings Complaint Card
+  lostBelongingCard: {
+    width: '100%',
+    maxWidth: 420,
+    marginTop: 6,
+    marginBottom: 20,
+  },
+  lostActionBtnCol: {
+    gap: 12,
+  },
+  lostRegisterDirectBtn: {
+    backgroundColor: '#D97706',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 8,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 2px 6px rgba(217, 119, 6, 0.25)',
+      },
+      default: {
+        shadowColor: '#D97706',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+      },
+    }),
+  },
+  lostRegisterDirectBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  lostUploadBtn: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#CBD5E1',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 8,
+  },
+  lostUploadBtnText: {
+    color: Colors.policeNavy,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+
+  // Lost Item No Photo & Upload in DETAILS_CONFIRM
+  thumbBoxLostNoPhoto: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  noPhotoThumbInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noPhotoTagText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#B45309',
+    marginTop: 4,
+    letterSpacing: 0.3,
+  },
+
+  lostPhotoUploadCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    padding: 14,
+    marginBottom: 16,
+  },
+  lostPhotoUploadHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  lostPhotoUploadTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.policeNavy,
+  },
+  lostPhotoUploadSub: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 15,
+    marginBottom: 12,
+  },
+  lostPhotoPreviewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  lostPhotoPreviewThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  lostPhotoActionCol: {
+    flex: 1,
+    gap: 8,
+  },
+  lostChangePhotoBtn: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  lostChangePhotoBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.policeNavy,
+  },
+  removePhotoBtn: {
+    paddingVertical: 4,
+    alignItems: 'center',
+  },
+  removePhotoBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#DC2626',
+  },
+  lostPhotoUploadActionBtn: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#94A3B8',
+    borderStyle: 'dashed',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  lostPhotoUploadActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.policeNavy,
   },
 });
