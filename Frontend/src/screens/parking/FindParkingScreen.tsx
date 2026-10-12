@@ -64,9 +64,11 @@ const PARKING_IMAGES: Record<string, any> = {
 
 export const FindParkingScreen: React.FC = () => {
   const [vehicleType, setVehicleType] = useState<VehicleType>('CAR');
-  const [zones, setZones] = useState<ParkingZone[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [spotlightZone, setSpotlightZone] = useState<ParkingZone | null>(null);
+  const [zones, setZones] = useState<ParkingZone[]>(REAL_PUDUCHERRY_ZONES);
+  const [isLoading, setIsLoading] = useState(false);
+  const [spotlightZone, setSpotlightZone] = useState<ParkingZone | null>(() =>
+    getNearestAvailableParking({ latitude: 11.9338, longitude: 79.8310 }, REAL_PUDUCHERRY_ZONES, 'CAR')
+  );
   const [selectedPlan, setSelectedPlan] = useState<TripPlanSuggestion | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('ALL');
@@ -82,7 +84,6 @@ export const FindParkingScreen: React.FC = () => {
   const [selectedCamZone, setSelectedCamZone] = useState<ParkingZone | null>(null);
 
   useEffect(() => {
-    setIsLoading(true);
     AppwriteDb.fetchParkingZones()
       .then((realZones) => {
         if (realZones && realZones.length > 0) {
@@ -98,8 +99,8 @@ export const FindParkingScreen: React.FC = () => {
           }
         }
       })
-      .finally(() => {
-        setIsLoading(false);
+      .catch((err) => {
+        console.warn('Appwrite fetch error, using local dataset', err);
       });
   }, []);
 

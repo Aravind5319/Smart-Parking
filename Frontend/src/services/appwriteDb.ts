@@ -18,10 +18,33 @@ client
 const databases = new Databases(client);
 const storage = new Storage(client);
 
-// In-memory cache for fast responsive UI
-let cachedZones: ParkingZone[] = [];
-let cachedTickets: ViolationReport[] = [];
-let cachedAdvisories: TrafficAdvisory[] = [];
+// In-memory & local cache for fast responsive UI & offline support (camera Wi-Fi with no internet)
+let cachedZones: ParkingZone[] = [...REAL_PUDUCHERRY_ZONES];
+let cachedTickets: ViolationReport[] = [...MOCK_TICKETS];
+let cachedAdvisories: TrafficAdvisory[] = [...MOCK_ADVISORIES];
+
+try {
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem('parkpuduvai_zones_cache');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        cachedZones = parsed;
+      }
+    }
+  }
+} catch (e) {
+  // Ignore storage access errors
+}
+
+const withTimeout = <T>(promise: Promise<T>, ms = 2000): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Appwrite network timeout (offline mode)')), ms)
+    ),
+  ]);
+};
 
 export const AppwriteDb = {
   client,
@@ -39,10 +62,13 @@ export const AppwriteDb = {
       };
     }
     try {
-      await databases.listDocuments(
-        APPWRITE_CONFIG.DATABASE_ID,
-        APPWRITE_CONFIG.COLLECTIONS.PARKING_ZONES,
-        [Query.limit(1)]
+      await withTimeout(
+        databases.listDocuments(
+          APPWRITE_CONFIG.DATABASE_ID,
+          APPWRITE_CONFIG.COLLECTIONS.PARKING_ZONES,
+          [Query.limit(1)]
+        ),
+        2000
       );
       return {
         connected: true,
@@ -69,13 +95,16 @@ export const AppwriteDb = {
     }
 
     try {
-      const response = await databases.listDocuments(
-        APPWRITE_CONFIG.DATABASE_ID,
-        APPWRITE_CONFIG.COLLECTIONS.PARKING_ZONES,
-        [Query.limit(50)]
+      const response = await withTimeout(
+        databases.listDocuments(
+          APPWRITE_CONFIG.DATABASE_ID,
+          APPWRITE_CONFIG.COLLECTIONS.PARKING_ZONES,
+          [Query.limit(50)]
+        ),
+        2500
       );
 
-      if (response.documents.length > 0) {
+      if (response && response.documents && response.documents.length > 0) {
         const parsed: ParkingZone[] = response.documents.map((doc: any) => ({
           id: doc.zoneId || doc.$id,
           name: doc.name,
@@ -101,11 +130,16 @@ export const AppwriteDb = {
           imageUrl: doc.imageUrl || undefined,
         }));
         cachedZones = parsed;
+        try {
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('parkpuduvai_zones_cache', JSON.stringify(parsed));
+          }
+        } catch (e) {}
         return parsed;
       }
       return cachedZones;
     } catch (error) {
-      console.warn('[Appwrite] Fetch parking zones fallback to local:', error);
+      console.warn('[Appwrite] Fetch parking zones offline/timeout fallback to local:', error);
       return cachedZones;
     }
   },

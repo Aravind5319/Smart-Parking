@@ -40,34 +40,71 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
   onReportViolation,
 }) => {
   const [detectionMode, setDetectionMode] = useState<'SPACE' | 'VIOLATION'>('SPACE');
-  const [streamStatus, setStreamStatus] = useState<'CONNECTING' | 'LIVE' | 'OFFLINE'>('CONNECTING');
-  const [cameraStats, setCameraStats] = useState({
-    fps: 25,
-    latencyMs: 16,
-    precision: '99.8%',
-    occupied: 14,
-    vacant: 21,
-    violations: 1,
-    ip: '192.168.0.100',
-  });
+  const [isBridgeOnline, setIsBridgeOnline] = useState(true);
+  const [isRealHardwareCam, setIsRealHardwareCam] = useState(false);
+  const [activeStream, setActiveStream] = useState<'1' | '2'>('2');
+  const [streamError, setStreamError] = useState(false);
+  const [streamKey, setStreamKey] = useState(Date.now());
+  const [measuredFps, setMeasuredFps] = useState(25.0);
+  const [cameraIp, setCameraIp] = useState('192.168.0.100');
 
-  const localStreamUrl = 'http://localhost:5001/video_feed';
-
+  // Check Python Bridge status periodically
   useEffect(() => {
-    if (visible) {
-      setStreamStatus('CONNECTING');
-      const timer = setTimeout(() => {
-        setStreamStatus('LIVE');
-      }, 700);
-      return () => clearTimeout(timer);
-    }
+    if (!visible) return;
+
+    let isMounted = true;
+    const checkBridgeStatus = async () => {
+      try {
+        const res = await fetch('http://localhost:5001/status');
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) {
+            setIsBridgeOnline(true);
+            setIsRealHardwareCam(Boolean(data.is_real_camera));
+            if (data.fps) setMeasuredFps(data.fps);
+            if (data.camera_ip) setCameraIp(data.camera_ip);
+            if (data.stream) setActiveStream(data.stream as '1' | '2');
+            setStreamError(false);
+          }
+        } else {
+          if (isMounted) setIsBridgeOnline(false);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setIsBridgeOnline(false);
+          setIsRealHardwareCam(false);
+        }
+      }
+    };
+
+    checkBridgeStatus();
+    const interval = setInterval(checkBridgeStatus, 2500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [visible]);
+
+  // Handle stream switching (Stream 2 is low latency; Stream 1 is HD)
+  const handleSwitchStream = async (targetStream: '1' | '2') => {
+    setActiveStream(targetStream);
+    setStreamError(false);
+    setStreamKey(Date.now());
+    try {
+      await fetch(`http://localhost:5001/switch_stream?stream=${targetStream}`);
+    } catch (e) {
+      // Ignore switch error
+    }
+  };
 
   if (!zone) return null;
 
   const total = zone.totalSlots || 35;
   const occupied = zone.occupiedSlots || 14;
   const vacant = Math.max(0, total - occupied);
+
+  const localStreamUrl = `http://localhost:5001/video_feed?stream=${activeStream}&t=${streamKey}`;
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
@@ -76,9 +113,25 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
         <View style={styles.topHeader}>
           <View style={styles.headerTitleCol}>
             <View style={styles.badgeRow}>
-              <View style={styles.livePulseDot} />
-              <Text style={styles.liveBadgeText}>LIVE SENSOR FEED</Text>
-              <Text style={styles.rtspTag}>RTSP: {cameraStats.ip}:554</Text>
+              <View
+                style={[
+                  styles.livePulseDot,
+                  { backgroundColor: isRealHardwareCam ? '#10B981' : isBridgeOnline ? '#F59E0B' : '#64748B' },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.liveBadgeText,
+                  { color: isRealHardwareCam ? '#10B981' : isBridgeOnline ? '#F59E0B' : '#94A3B8' },
+                ]}
+              >
+                {isRealHardwareCam
+                  ? 'LIVE PHYSICAL CAM'
+                  : isBridgeOnline
+                  ? 'STANDBY SIMULATION'
+                  : 'OFFLINE'}
+              </Text>
+              <Text style={styles.rtspTag}>RTSP: {cameraIp}:554</Text>
             </View>
             <Text style={styles.camName}>
               {zone.sensorType || 'ANPR Pole Cam 02 (Mission St Corridor)'}
@@ -87,93 +140,122 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
           </View>
 
           <TouchableOpacity style={styles.closeBtn} onPress={onClose} activeOpacity={0.8}>
-            <Text style={styles.closeBtnText}>X</Text>
+            <Text style={styles.closeBtnText}>✕</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Stream Quality Selector & Hardware State Alert */}
+        <View style={styles.streamControlBar}>
+          <View style={styles.streamTypePill}>
+            <Text style={styles.streamStatusDetailText}>
+              {isRealHardwareCam
+                ? '🟢 Physical IP Camera Stream Active'
+                : '🟡 Connect PC to Camera Wi-Fi for live stream'}
+            </Text>
+          </View>
+
+          <View style={styles.streamToggleGroup}>
+            <TouchableOpacity
+              style={[styles.streamToggleBtn, activeStream === '2' && styles.streamToggleBtnActive]}
+              onPress={() => handleSwitchStream('2')}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.streamToggleText, activeStream === '2' && styles.streamToggleTextActive]}>
+                ⚡ Smooth (Sub 2)
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.streamToggleBtn, activeStream === '1' && styles.streamToggleBtnActive]}
+              onPress={() => handleSwitchStream('1')}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.streamToggleText, activeStream === '1' && styles.streamToggleTextActive]}>
+                🎯 HD (Stream 1)
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Video Monitor Frame */}
         <View style={styles.videoMonitorContainer}>
-          {Platform.OS === 'web' ? (
+          {Platform.OS === 'web' && isBridgeOnline && !streamError ? (
+            /* Live Stream Video Element from Python Bridge */
             <img
+              key={`feed-${activeStream}-${streamKey}`}
               src={localStreamUrl}
-              alt="Live Parking ANPR Camera Feed"
+              alt="Live Parking IP Camera Feed"
               style={{
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover',
                 backgroundColor: '#0F172A',
+                display: 'block',
               }}
-              onError={(e: any) => {
-                // If local Python bridge is not running yet, show simulated camera feed
-                e.currentTarget.style.display = 'none';
-                setStreamStatus('LIVE');
+              onError={() => {
+                setStreamError(true);
               }}
             />
-          ) : null}
+          ) : (
+            /* Fallback Simulation View with Photographic Backing & AI Overlays */
+            <View style={styles.simulatedFeedLayer}>
+              {zone.imageUrl ? (
+                <Image
+                  source={{ uri: zone.imageUrl }}
+                  style={styles.feedImage}
+                  resizeMode="cover"
+                />
+              ) : null}
+              <View style={styles.feedDarkTint} />
 
-          {/* Fallback Simulation View with Real-time AI Overlays */}
-          <View style={styles.simulatedFeedLayer} pointerEvents="box-none">
-            {/* Background CCTV Photo */}
-            {zone.imageUrl ? (
-              <Image
-                source={{ uri: zone.imageUrl }}
-                style={styles.feedImage}
-                resizeMode="cover"
-              />
-            ) : null}
-            <View style={styles.feedDarkTint} />
-
-            {/* OSD HUD Elements */}
-            <View style={styles.osdTopBanner}>
-              <View style={styles.osdLeft}>
-                <View style={styles.recDot} />
-                <Text style={styles.osdRecText}>REC • ANPR LIVE</Text>
+              {/* OSD HUD Elements */}
+              <View style={styles.osdTopBanner}>
+                <View style={styles.osdLeft}>
+                  <View style={styles.recDot} />
+                  <Text style={styles.osdRecText}>SIMULATED • STANDBY CCTV</Text>
+                </View>
+                <Text style={styles.osdTime}>
+                  {new Date().toLocaleTimeString()} • 25.0 FPS
+                </Text>
               </View>
-              <Text style={styles.osdTime}>
-                {new Date().toLocaleTimeString()} • 25.0 FPS
-              </Text>
-            </View>
 
-            {/* AI Bounding Boxes: Space Sensing vs Violation Sentinel */}
-            {detectionMode === 'SPACE' ? (
-              <>
-                {/* Spot #14 Vacant */}
-                <View style={[styles.aiBox, styles.aiBoxVacant, { top: '38%', left: '18%', width: '28%', height: '36%' }]}>
-                  <View style={[styles.aiBoxTag, styles.tagGreen]}>
-                    <Text style={styles.aiBoxTagText}>VACANT SPOT #14</Text>
+              {/* AI Bounding Boxes */}
+              {detectionMode === 'SPACE' ? (
+                <>
+                  <View style={[styles.aiBox, styles.aiBoxVacant, { top: '38%', left: '18%', width: '28%', height: '36%' }]}>
+                    <View style={[styles.aiBoxTag, styles.tagGreen]}>
+                      <Text style={styles.aiBoxTagText}>VACANT SPOT #14</Text>
+                    </View>
+                  </View>
+
+                  <View style={[styles.aiBox, styles.aiBoxVacant, { top: '38%', left: '52%', width: '28%', height: '36%' }]}>
+                    <View style={[styles.aiBoxTag, styles.tagGreen]}>
+                      <Text style={styles.aiBoxTagText}>VACANT SPOT #15</Text>
+                    </View>
+                  </View>
+
+                  <View style={[styles.aiBox, styles.aiBoxOccupied, { top: '38%', left: '82%', width: '16%', height: '36%' }]}>
+                    <View style={[styles.aiBoxTag, styles.tagRed]}>
+                      <Text style={styles.aiBoxTagText}>OCCUPIED: PY-01</Text>
+                    </View>
+                  </View>
+                </>
+              ) : (
+                <View style={[styles.aiBox, styles.aiBoxViolation, { top: '44%', left: '26%', width: '48%', height: '32%' }]}>
+                  <View style={[styles.aiBoxTag, styles.tagYellow]}>
+                    <Text style={styles.aiBoxTagText}>OBSTRUCTION: NO-PARKING KERB DWELL</Text>
                   </View>
                 </View>
+              )}
 
-                {/* Spot #15 Vacant */}
-                <View style={[styles.aiBox, styles.aiBoxVacant, { top: '38%', left: '52%', width: '28%', height: '36%' }]}>
-                  <View style={[styles.aiBoxTag, styles.tagGreen]}>
-                    <Text style={styles.aiBoxTagText}>VACANT SPOT #15</Text>
-                  </View>
-                </View>
-
-                {/* Spot #12 Occupied */}
-                <View style={[styles.aiBox, styles.aiBoxOccupied, { top: '38%', left: '82%', width: '16%', height: '36%' }]}>
-                  <View style={[styles.aiBoxTag, styles.tagRed]}>
-                    <Text style={styles.aiBoxTagText}>OCCUPIED: PY-01</Text>
-                  </View>
-                </View>
-              </>
-            ) : (
-              /* Violation Sentinel Mode */
-              <View style={[styles.aiBox, styles.aiBoxViolation, { top: '44%', left: '26%', width: '48%', height: '32%' }]}>
-                <View style={[styles.aiBoxTag, styles.tagYellow]}>
-                  <Text style={styles.aiBoxTagText}>OBSTRUCTION: NO-PARKING KERB DWELL</Text>
-                </View>
+              {/* OSD Bottom Diagnostics */}
+              <View style={styles.osdBottomBanner}>
+                <Text style={styles.osdDiagText}>
+                  AI PRECISION: 99.8% | OCCUPIED: {occupied}/{total} | VACANT: {vacant}
+                </Text>
               </View>
-            )}
-
-            {/* OSD Bottom Diagnostics */}
-            <View style={styles.osdBottomBanner}>
-              <Text style={styles.osdDiagText}>
-                AI PRECISION: {cameraStats.precision} | OCCUPIED: {occupied}/{total} | VACANT: {vacant}
-              </Text>
             </View>
-          </View>
+          )}
         </View>
 
         {/* Mode Selector Tabs */}
@@ -185,7 +267,7 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
           >
             <CheckCircleIcon color={detectionMode === 'SPACE' ? '#FFFFFF' : '#059669'} size={16} />
             <Text style={[styles.modeTabText, detectionMode === 'SPACE' && styles.modeTabTextActive]}>
-              Space Sensing (Vacancy Detection)
+              Space Sensing (Vacancy AI)
             </Text>
           </TouchableOpacity>
 
@@ -217,8 +299,8 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
               <Text style={styles.statLabel}>Total Slots</Text>
             </View>
             <View style={styles.statBox}>
-              <Text style={[styles.statNum, { color: '#2563EB' }]}>99.8%</Text>
-              <Text style={styles.statLabel}>AI Accuracy</Text>
+              <Text style={[styles.statNum, { color: '#2563EB' }]}>{measuredFps}</Text>
+              <Text style={styles.statLabel}>Live FPS</Text>
             </View>
           </View>
 
@@ -328,9 +410,50 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
   },
+  streamControlBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#0B2559',
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
+  },
+  streamTypePill: {
+    flex: 1,
+    marginRight: 8,
+  },
+  streamStatusDetailText: {
+    color: '#E2E8F0',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  streamToggleGroup: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  streamToggleBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  streamToggleBtnActive: {
+    backgroundColor: '#10B981',
+  },
+  streamToggleText: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  streamToggleTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+  },
   videoMonitorContainer: {
     width: '100%',
-    height: 300,
+    height: 290,
     backgroundColor: '#0F172A',
     position: 'relative',
     overflow: 'hidden',
@@ -449,13 +572,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    backgroundColor: '#0F2447',
-    borderWidth: 1,
-    borderColor: '#1E3A8A',
     gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#1E293B',
+    borderWidth: 1,
+    borderColor: '#334155',
   },
   modeTabActive: {
     backgroundColor: '#059669',
@@ -466,20 +588,23 @@ const styles = StyleSheet.create({
     borderColor: '#F59E0B',
   },
   modeTabText: {
-    color: '#CBD5E1',
+    color: '#94A3B8',
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '700',
   },
   modeTabTextActive: {
     color: '#FFFFFF',
   },
   diagCard: {
     marginHorizontal: 16,
-    backgroundColor: '#0B2559',
+    backgroundColor: '#FFFFFF',
     borderRadius: 14,
     padding: 16,
-    borderWidth: 1,
-    borderColor: '#1E3A8A',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 4,
   },
   statGrid: {
     flexDirection: 'row',
@@ -487,20 +612,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   statBox: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
     flex: 1,
-    marginHorizontal: 3,
+    alignItems: 'center',
   },
   statNum: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
   },
   statLabel: {
-    color: '#94A3B8',
+    color: '#64748B',
     fontSize: 10,
     fontWeight: '700',
     marginTop: 2,
@@ -514,29 +634,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#10B981',
+    gap: 6,
+    backgroundColor: '#059669',
     paddingVertical: 12,
     borderRadius: 10,
-    gap: 8,
   },
   navBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '900',
+    fontSize: 12,
+    fontWeight: '800',
   },
   reportBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
     backgroundColor: '#DC2626',
     paddingVertical: 12,
     borderRadius: 10,
-    gap: 8,
   },
   reportBtnText: {
     color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '900',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });
