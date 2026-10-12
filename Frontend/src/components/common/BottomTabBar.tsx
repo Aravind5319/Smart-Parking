@@ -7,7 +7,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { TabType } from '../../types/navigation';
-import { ParkingIcon, CameraIcon, TicketIcon, BellIcon } from './TabIcons';
+import { ParkingIcon, CameraIcon, ProfileTabIcon, ExploreMapTabIcon } from './TabIcons';
 
 interface BottomTabBarProps {
   activeTab: TabType;
@@ -22,23 +22,18 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({ activeTab, onSelectT
   }[] = [
     {
       key: 'parking',
-      label: 'Find Parking',
-      renderIcon: ({ color, focused }) => <ParkingIcon color={color} size={22} focused={focused} />,
+      label: 'Explore',
+      renderIcon: ({ color, focused }) => <ExploreMapTabIcon color={color} size={22} focused={focused} />,
     },
     {
       key: 'report',
-      label: 'Report Violation',
+      label: 'Report',
       renderIcon: ({ color, focused }) => <CameraIcon color={color} size={22} focused={focused} />,
     },
     {
-      key: 'tickets',
-      label: 'My Complaints',
-      renderIcon: ({ color, focused }) => <TicketIcon color={color} size={22} focused={focused} />,
-    },
-    {
-      key: 'alerts',
-      label: 'Advisories',
-      renderIcon: ({ color, focused }) => <BellIcon color={color} size={22} focused={focused} />,
+      key: 'profile',
+      label: 'Profile',
+      renderIcon: ({ color, focused }) => <ProfileTabIcon color={color} size={22} focused={focused} />,
     },
   ];
 

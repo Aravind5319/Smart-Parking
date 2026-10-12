@@ -561,6 +561,173 @@ export const UploadIcon: React.FC<IconProps> = ({ color = '#1E3A8A', size = 16, 
   return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
 };
 
+// 41. Restroom / Public Toilet Icon
+export const RestroomIcon: React.FC<IconProps> = ({ color = '#0284C7', size = 18, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <circle cx="7" cy="5" r="2" />
+        <path d="M5 21v-7H3V9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v5H9v7" />
+        <circle cx="17" cy="5" r="2" />
+        <path d="M15 21v-5h-1l2-7a1.5 1.5 0 0 1 2 0l2 7h-1v5" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 42. Fuel / Petrol Pump Icon
+export const FuelIcon: React.FC<IconProps> = ({ color = '#EA580C', size = 18, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <path d="M3 22h12M4 9h10M4 22V4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v18" />
+        <path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2 2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L19 6" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 43. ATM / Cash Icon
+export const AtmIcon: React.FC<IconProps> = ({ color = '#16A34A', size = 18, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <line x1="2" y1="10" x2="22" y2="10" />
+        <line x1="6" y1="15" x2="10" y2="15" />
+        <line x1="14" y1="15" x2="18" y2="15" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 44. Traffic Light / Signal Icon
+export const TrafficLightIcon: React.FC<IconProps> = ({ color = '#EAB308', size = 18, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <rect x="7" y="2" width="10" height="20" rx="4" />
+        <circle cx="12" cy="6" r="1.5" fill="#EF4444" stroke="none" />
+        <circle cx="12" cy="12" r="1.5" fill="#EAB308" stroke="none" />
+        <circle cx="12" cy="18" r="1.5" fill="#10B981" stroke="none" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 45. Ambulance / Emergency Vehicle Icon
+export const AmbulanceIcon: React.FC<IconProps> = ({ color = '#DC2626', size = 18, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <path d="M19 17h2b a1 1 0 0 0 1-1v-3.5a2 2 0 0 0-.6-1.4l-2.8-2.8a2 2 0 0 0-1.4-.6H14V5a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h2" />
+        <circle cx="7" cy="17" r="2" />
+        <circle cx="17" cy="17" r="2" />
+        <line x1="8" y1="10" x2="10" y2="10" />
+        <line x1="9" y1="9" x2="9" y2="11" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 46. Voice Mic Icon
+export const MicIcon: React.FC<IconProps> = ({ color = '#4285F4', size = 18, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+        <line x1="12" y1="19" x2="12" y2="22" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 47. Star Rating Icon
+export const StarIcon: React.FC<IconProps> = ({ color = '#F59E0B', size = 14, strokeWidth = 1.5 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 48. Share Icon
+export const ShareIcon: React.FC<IconProps> = ({ color = '#1E3A8A', size = 16, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <circle cx="18" cy="5" r="3" />
+        <circle cx="6" cy="12" r="3" />
+        <circle cx="18" cy="19" r="3" />
+        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 49. User / Profile Icon
+export const UserIcon: React.FC<IconProps> = ({ color = '#0B2559', size = 18, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 50. Directions Turn Icon (Google Maps Style Diamond)
+export const DirectionsIcon: React.FC<IconProps> = ({ color = '#FFFFFF', size = 16, strokeWidth = 2.5 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <path d="m14 10 4 4m0 0-4 4m4-4H9a3 3 0 0 1-3-3V6" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 51. Electric Vehicle (EV) Icon
+export const EvIcon: React.FC<IconProps> = ({ color = '#10B981', size = 16, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <path d="M13 2 4 14h7v8l9-12h-7z" fill={color} fillOpacity="0.2" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 52. Volume / Audio Prompt Icon
+export const VolumeIcon: React.FC<IconProps> = ({ color = '#FFFFFF', size = 18, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
 const styles = StyleSheet.create({
   fallbackBox: {
     borderWidth: 1.5,

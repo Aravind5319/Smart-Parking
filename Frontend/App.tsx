@@ -17,6 +17,8 @@ import { ReportViolationScreen } from './src/screens/reporting/ReportViolationSc
 import { TrackComplaintsScreen } from './src/screens/reporting/TrackComplaintsScreen';
 import { FindParkingScreen } from './src/screens/parking/FindParkingScreen';
 import { AdvisoriesScreen } from './src/screens/alerts/AdvisoriesScreen';
+import { ProfileScreen } from './src/screens/profile/ProfileScreen';
+import { EmergencyAssistanceModal } from './src/components/emergency/EmergencyAssistanceModal';
 import { TabType, ViolationReport } from './src/types/navigation';
 import { MOCK_TICKETS } from './src/data/mockData';
 import { Colors } from './src/theme/colors';
@@ -88,12 +90,16 @@ export default function App() {
     );
   };
 
+  const [emergencyModalVisible, setEmergencyModalVisible] = useState(false);
+
   const getHeaderTitle = () => {
     switch (activeTab) {
       case 'parking':
-        return 'Find Smart Parking';
+        return 'Smart Puducherry • Explore & Park';
       case 'report':
         return 'Report Violation';
+      case 'profile':
+        return 'Citizen Profile & Karma';
       case 'tickets':
         return 'Track Complaints';
       case 'alerts':
@@ -161,19 +167,21 @@ export default function App() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.policeNavyDark} />
 
-      {/* Global Civic Tech Header */}
-      <Header
-        title={getHeaderTitle()}
-        subtitle="Puducherry Traffic Police • ParkPuduvai"
-        showKarma={activeTab === 'tickets'}
-        karmaPoints={karmaPoints}
-        onPressKarma={() =>
-          Alert.alert(
-            'Civic Karma Points',
-            `You have ${karmaPoints} points (Level 2: Traffic Sentinel).\n\nKeep reporting authentic parking obstructions and choosing peripheral parking to earn civic benefits!`
-          )
-        }
-      />
+      {/* Global Header (Only shown on non-map screens: report & tickets) */}
+      {activeTab !== 'parking' && (
+        <Header
+          title={getHeaderTitle()}
+          subtitle="Puducherry Traffic Police • ParkPuduvai"
+          showKarma={activeTab === 'profile' || activeTab === 'tickets'}
+          karmaPoints={karmaPoints}
+          onPressKarma={() =>
+            Alert.alert(
+              'Civic Karma Points',
+              `You have ${karmaPoints} points (Level 2: Traffic Sentinel).\n\nKeep reporting authentic parking obstructions and choosing peripheral parking to earn civic benefits!`
+            )
+          }
+        />
+      )}
 
       {/* Screen Router */}
       <View style={styles.screenContainer}>
@@ -182,6 +190,14 @@ export default function App() {
           <ReportViolationScreen
             onSubmitSuccess={handleReportSubmitted}
             onCameraActiveChange={setIsCameraActive}
+          />
+        )}
+        {activeTab === 'profile' && (
+          <ProfileScreen
+            karmaPoints={karmaPoints}
+            tickets={tickets}
+            onNavigateToReport={() => setActiveTab('report')}
+            onOpenEmergency={() => setEmergencyModalVisible(true)}
           />
         )}
         {activeTab === 'tickets' && (
@@ -198,6 +214,12 @@ export default function App() {
           />
         )}
       </View>
+
+      {/* Global Emergency Modal */}
+      <EmergencyAssistanceModal
+        visible={emergencyModalVisible}
+        onClose={() => setEmergencyModalVisible(false)}
+      />
 
       {/* Tactile Floating Bottom Navigation (Hidden while camera viewfinder is open) */}
       {!isCameraActive && (

@@ -2,7 +2,62 @@
 // PARKPUDUVAI - SHARED TYPES & DATA CONTRACTS
 // ============================================================================
 
-export type TabType = 'parking' | 'report' | 'tickets' | 'alerts';
+export type TabType = 'parking' | 'report' | 'profile' | 'tickets' | 'alerts';
+
+export type PlaceCategory =
+  | 'PARKING_SMART'
+  | 'PARKING_FREE'
+  | 'NO_PARKING'
+  | 'TOILET'
+  | 'FUEL'
+  | 'ATM'
+  | 'SIGNAL'
+  | 'ATTRACTION';
+
+export interface CityPlace {
+  id: string;
+  name: string;
+  category: PlaceCategory;
+  streetName: string;
+  area: string;
+  coordinates: {
+    latitude: number;
+    longitude: number;
+  };
+  distanceKm: number;
+  walkingTimeMin: number;
+  drivingTimeMin: number;
+  rating?: number;
+  reviewCount?: number;
+  imageUrl?: string;
+  badgeText: string;
+  totalSlots?: number;
+  occupiedSlots?: number;
+  vacantSlots?: number;
+  tariff?: string;
+  amenities?: string[];
+  phone?: string;
+  cameraEnabled?: boolean;
+  openHours?: string;
+  enforcementNotice?: string;
+  statusText?: string;
+  isFull?: boolean;
+}
+
+export interface NavigationSession {
+  destination: CityPlace;
+  origin: { latitude: number; longitude: number };
+  etaMinutes: number;
+  distanceKm: number;
+  arrivalTime: string;
+  currentStepIndex: number;
+  steps: {
+    instruction: string;
+    distance: string;
+    action: 'LEFT' | 'RIGHT' | 'STRAIGHT' | 'ARRIVE';
+    street: string;
+  }[];
+}
 
 export type ReportDomain = 'TRAFFIC' | 'CIVIC_LOST_FOUND';
 

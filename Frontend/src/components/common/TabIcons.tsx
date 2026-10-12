@@ -123,6 +123,62 @@ export const BellIcon: React.FC<IconProps> = ({ color, size = 22, focused }) => 
   );
 };
 
+// ============================================================================
+// 5. PROFILE / YOU SVG ICON
+// ============================================================================
+export const ProfileTabIcon: React.FC<IconProps> = ({ color, size = 22, focused }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill={focused ? `${color}15` : "none"}
+        stroke={color}
+        strokeWidth={focused ? "2.3" : "1.8"}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ display: 'block' }}
+      >
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" fill={focused ? color : "none"} />
+      </svg>
+    );
+  }
+
+  return (
+    <View style={[styles.nativeBox, { width: size, height: size, borderColor: color }]} />
+  );
+};
+
+// ============================================================================
+// 6. EXPLORE / MAP PIN SVG ICON (Google Maps Pin Style)
+// ============================================================================
+export const ExploreMapTabIcon: React.FC<IconProps> = ({ color, size = 22, focused }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox="0 0 24 24"
+        fill={focused ? `${color}15` : "none"}
+        stroke={color}
+        strokeWidth={focused ? "2.3" : "1.8"}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ display: 'block' }}
+      >
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+        <circle cx="12" cy="10" r="3" fill={focused ? color : "none"} />
+      </svg>
+    );
+  }
+
+  return (
+    <View style={[styles.nativeBox, { width: size, height: size, borderColor: color }]} />
+  );
+};
+
 const styles = StyleSheet.create({
   nativeBox: {
     borderWidth: 2,
