@@ -30,6 +30,7 @@ import {
   CheckCircleIcon,
   ClockIcon,
   ProhibitedIcon,
+  CameraIcon,
 } from '../../components/common/Icons';
 import {
   ParkingZone,
@@ -42,6 +43,9 @@ import {
   fetchRealParkingZones,
 } from '../../services/parkingService';
 import { AppwriteDb } from '../../services/appwriteDb';
+import { ParkingDetailsModal } from '../../components/parking/ParkingDetailsModal';
+import { InAppNavigationModal } from '../../components/parking/InAppNavigationModal';
+import { ParkingCameraModal } from '../../components/parking/ParkingCameraModal';
 
 type VehicleType = 'CAR' | 'BIKE';
 type CategoryFilter = 'ALL' | 'FREE' | 'GOVT';
@@ -71,6 +75,11 @@ export const FindParkingScreen: React.FC = () => {
     latitude: 11.9338,
     longitude: 79.8310,
   });
+
+  // Modal Dialog States
+  const [detailZone, setDetailZone] = useState<ParkingZone | null>(null);
+  const [navigationZone, setNavigationZone] = useState<ParkingZone | null>(null);
+  const [selectedCamZone, setSelectedCamZone] = useState<ParkingZone | null>(null);
 
   useEffect(() => {
     setIsLoading(true);
@@ -146,24 +155,9 @@ export const FindParkingScreen: React.FC = () => {
     }
   };
 
-  // Turn-by-turn navigation handler
+  // In-App Turn-by-turn navigation handler
   const handleNavigate = (zone: ParkingZone) => {
-    const lat = zone.coordinates.latitude;
-    const lng = zone.coordinates.longitude;
-    const url = Platform.select({
-      ios: `maps:0,0?q=${encodeURIComponent(zone.name)}@${lat},${lng}`,
-      android: `geo:0,0?q=${lat},${lng}(${encodeURIComponent(zone.name)})`,
-      web: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
-      default: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
-    });
-
-    if (Platform.OS === 'web') {
-      window.open(url, '_blank');
-    } else {
-      Linking.openURL(url).catch(() => {
-        Alert.alert('Directions', `Navigating to ${zone.name} (${zone.streetName})`);
-      });
-    }
+    setNavigationZone(zone);
   };
 
   // Call Police Control Room
@@ -375,15 +369,37 @@ export const FindParkingScreen: React.FC = () => {
                 </Text>
               </View>
 
-              {/* Big Primary Navigation Button */}
-              <TouchableOpacity
-                style={styles.navigatePrimaryBtn}
-                onPress={() => handleNavigate(spotlightZone)}
-                activeOpacity={0.85}
-              >
-                <NavigationIcon color="#FFFFFF" size={18} />
-                <Text style={styles.navigatePrimaryBtnText}>START NAVIGATION TO BAY</Text>
-              </TouchableOpacity>
+              {/* Big Primary Navigation Button & Live Cam / Details */}
+              <View style={styles.spotlightActionsWrapper}>
+                <TouchableOpacity
+                  style={styles.navigatePrimaryBtn}
+                  onPress={() => handleNavigate(spotlightZone)}
+                  activeOpacity={0.85}
+                >
+                  <NavigationIcon color="#FFFFFF" size={18} />
+                  <Text style={styles.navigatePrimaryBtnText}>START IN-APP NAVIGATION</Text>
+                </TouchableOpacity>
+
+                <View style={styles.spotlightSecondaryRow}>
+                  <TouchableOpacity
+                    style={styles.spotlightDetailBtn}
+                    onPress={() => setDetailZone(spotlightZone)}
+                    activeOpacity={0.85}
+                  >
+                    <PoliceShieldIcon color="#0B2559" size={15} />
+                    <Text style={styles.spotlightDetailBtnText}>View Details</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.spotlightCamBtn}
+                    onPress={() => setSelectedCamZone(spotlightZone)}
+                    activeOpacity={0.85}
+                  >
+                    <CameraIcon color="#0B2559" size={15} />
+                    <Text style={styles.spotlightCamBtnText}>Live Sensor Cam</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           </View>
         </View>
@@ -566,16 +582,27 @@ export const FindParkingScreen: React.FC = () => {
                 <View style={styles.cardActionRow}>
                   <TouchableOpacity
                     style={styles.cardSelectBtn}
-                    onPress={() => setSpotlightZone(zone)}
+                    onPress={() => setDetailZone(zone)}
+                    activeOpacity={0.8}
                   >
                     <Text style={styles.cardSelectBtnText}>View Details</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
+                    style={styles.cardCamBtn}
+                    onPress={() => setSelectedCamZone(zone)}
+                    activeOpacity={0.8}
+                  >
+                    <CameraIcon color="#0B2559" size={13} />
+                    <Text style={styles.cardCamBtnText}>Live Cam</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
                     style={styles.cardNavBtn}
                     onPress={() => handleNavigate(zone)}
+                    activeOpacity={0.8}
                   >
-                    <NavigationIcon color="#FFFFFF" size={14} />
+                    <NavigationIcon color="#FFFFFF" size={13} />
                     <Text style={styles.cardNavBtnText}>Navigate</Text>
                   </TouchableOpacity>
                 </View>
@@ -630,6 +657,44 @@ export const FindParkingScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
+      {/* 10. Facility Details Modal */}
+      <ParkingDetailsModal
+        visible={!!detailZone}
+        zone={detailZone}
+        onClose={() => setDetailZone(null)}
+        onStartNavigation={(z) => {
+          setDetailZone(null);
+          handleNavigate(z);
+        }}
+        onOpenCam={(z) => {
+          setDetailZone(null);
+          setSelectedCamZone(z);
+        }}
+      />
+
+      {/* 11. In-App Turn-By-Turn Navigation Modal */}
+      <InAppNavigationModal
+        visible={!!navigationZone}
+        destination={navigationZone}
+        origin={userLocation}
+        onClose={() => setNavigationZone(null)}
+        onOpenCam={(z) => {
+          setNavigationZone(null);
+          setSelectedCamZone(z);
+        }}
+      />
+
+      {/* 12. Real-Time ANPR / Parking Space CCTV Camera Modal */}
+      <ParkingCameraModal
+        visible={!!selectedCamZone}
+        zone={selectedCamZone}
+        onClose={() => setSelectedCamZone(null)}
+        onNavigateToBay={(z) => {
+          setSelectedCamZone(null);
+          handleNavigate(z);
+        }}
+      />
+
     </ScrollView>
   );
 };
@@ -640,63 +705,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F1F5F9',
   },
   scrollContent: {
-    paddingBottom: 40,
-  },
-
-  // Official Police Ribbon
-  policeRibbon: {
-    backgroundColor: '#071630',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: 3,
-    borderBottomColor: '#D31826',
-  },
-  policeRibbonLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  ribbonLogo: {
-    width: 32,
-    height: 32,
-    marginRight: 10,
-  },
-  ribbonDept: {
-    color: '#F59E0B',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.8,
-  },
-  ribbonSub: {
-    color: '#E2E8F0',
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  ribbonBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#10B981',
-  },
-  ribbonDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-    marginRight: 4,
-  },
-  ribbonBadgeText: {
-    color: '#10B981',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.5,
+    paddingBottom: 110,
+    maxWidth: 760,
+    width: '100%',
+    alignSelf: 'center',
   },
 
   // Vehicle Selector Card
@@ -728,26 +740,28 @@ const styles = StyleSheet.create({
   },
   vehicleRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   vehicleBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
     borderRadius: 12,
     backgroundColor: '#F8FAFC',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: '#CBD5E1',
+    position: 'relative',
   },
   vehicleBtnActive: {
     backgroundColor: '#0B2559',
     borderColor: '#0B2559',
   },
   vehicleIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#E0E7FF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -757,10 +771,11 @@ const styles = StyleSheet.create({
   },
   vehicleTextCol: {
     flex: 1,
-    marginLeft: 10,
+    marginLeft: 8,
+    marginRight: 16,
   },
   vehicleLabel: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: '#0F172A',
   },
@@ -768,15 +783,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   vehicleDesc: {
-    fontSize: 11,
+    fontSize: 10,
     color: '#64748B',
-    marginTop: 2,
+    marginTop: 1,
   },
   vehicleDescActive: {
-    color: '#CBD5E1',
+    color: '#93C5FD',
   },
   checkPill: {
-    marginLeft: 4,
+    position: 'absolute',
+    top: 6,
+    right: 6,
   },
 
   // Hero Quick Action: Locate Nearest Bay
@@ -969,10 +986,13 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontWeight: '600',
   },
+  spotlightActionsWrapper: {
+    marginTop: 14,
+    gap: 8,
+  },
   navigatePrimaryBtn: {
     backgroundColor: '#0B2559',
-    marginTop: 14,
-    paddingVertical: 14,
+    paddingVertical: 13,
     borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
@@ -981,9 +1001,47 @@ const styles = StyleSheet.create({
   },
   navigatePrimaryBtnText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '900',
     letterSpacing: 0.5,
+  },
+  spotlightSecondaryRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  spotlightDetailBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    gap: 6,
+  },
+  spotlightDetailBtnText: {
+    color: '#0B2559',
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  spotlightCamBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    gap: 6,
+  },
+  spotlightCamBtnText: {
+    color: '#0B2559',
+    fontSize: 12.5,
+    fontWeight: '800',
   },
 
   // Plan Visit Scroll
@@ -1243,10 +1301,10 @@ const styles = StyleSheet.create({
   cardActionRow: {
     flexDirection: 'row',
     marginTop: 12,
-    gap: 10,
+    gap: 8,
   },
   cardSelectBtn: {
-    flex: 1,
+    flex: 1.1,
     paddingVertical: 10,
     borderRadius: 8,
     backgroundColor: '#F1F5F9',
@@ -1256,22 +1314,39 @@ const styles = StyleSheet.create({
     borderColor: '#CBD5E1',
   },
   cardSelectBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#334155',
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0B2559',
   },
-  cardNavBtn: {
+  cardCamBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
     borderRadius: 8,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    gap: 4,
+  },
+  cardCamBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1E40AF',
+  },
+  cardNavBtn: {
+    flex: 1.1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
     backgroundColor: '#0B2559',
-    gap: 6,
+    gap: 4,
   },
   cardNavBtnText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
     color: '#FFFFFF',
   },
