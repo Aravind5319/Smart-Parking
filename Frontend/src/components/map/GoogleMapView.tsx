@@ -213,6 +213,13 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
     <span>Rajiv Gandhi Signal • Normal Flow</span>
   </div>
 
+  <!-- Google Maps Bottom-Left Logo -->
+  <div style="position: absolute; bottom: 6px; left: 10px; z-index: 1000; pointer-events: none; opacity: 0.85;">
+    <span style="font-family: 'Product Sans', Roboto, Arial, sans-serif; font-size: 14px; font-weight: 700; color: #5f6368; letter-spacing: -0.3px;">
+      <span style="color: #4285F4">G</span><span style="color: #EA4335">o</span><span style="color: #FBBC05">o</span><span style="color: #4285F4">g</span><span style="color: #34A853">l</span><span style="color: #EA4335">e</span>
+    </span>
+  </div>
+
   <!-- Recenter GPS Button -->
   <div class="recenter-btn" onclick="recenterMap()">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -232,16 +239,21 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
     const navSession = ${navJson};
     const selectedPlaceId = "${selectedId}";
 
-    // Initialize Leaflet Map centered on Puducherry
+    // Central Puducherry Heritage & Smart Parking Boulevard Coordinates
+    const defaultCityCenter = [11.9338, 79.8310];
+    const initialLat = (places && places.length > 0 && places[0].coordinates) ? places[0].coordinates.latitude : 11.9338;
+    const initialLng = (places && places.length > 0 && places[0].coordinates) ? places[0].coordinates.longitude : 79.8310;
+
+    // Initialize Leaflet Map centered on Central Puducherry Smart Parking Zone
     const map = L.map('map', {
       zoomControl: false,
       attributionControl: false
-    }).setView([userLat, userLng], 15);
+    }).setView([initialLat, initialLng], 15);
 
-    // Primary: ESRI World Street Map (Google Maps styled, zero watermarks, 100% free)
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19,
-      subdomains: ['server', 'services']
+    // REAL GOOGLE MAPS TILE ENGINE (Official Roadmap with subdomains)
+    L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
     }).addTo(map);
 
     // Pulsing User Location Marker
