@@ -1,91 +1,208 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
-import { Search, Bell, User, Clock, Globe } from 'lucide-react';
+import { User, Sun, Moon, Sparkles } from 'lucide-react';
 
 export function Header() {
   const { lang, setLang, t } = useLanguage();
-  const [currentTime, setCurrentTime] = useState<Date | null>(null);
+  const [currentDate, setCurrentDate] = useState<string>('11 Oct 2026');
+  const [currentTime, setCurrentTime] = useState<string>('23:36:17');
+  const [themeMode, setThemeMode] = useState<'dark' | 'white'>('dark');
 
   useEffect(() => {
-    // eslint-disable-next-line
-    setCurrentTime(new Date());
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 60000);
+    // Check saved theme
+    const savedTheme = localStorage.getItem('police_dashboard_theme') as 'dark' | 'white';
+    if (savedTheme) {
+      setThemeMode(savedTheme);
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    }
+
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentDate(
+        now.toLocaleDateString('en-GB', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        })
+      );
+      setCurrentTime(
+        now.toLocaleTimeString('en-GB', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false
+        })
+      );
+    };
+
+    updateTime();
+    const timer = setInterval(updateTime, 1000);
     return () => clearInterval(timer);
   }, []);
 
+  const toggleTheme = () => {
+    const next = themeMode === 'dark' ? 'white' : 'dark';
+    setThemeMode(next);
+    localStorage.setItem('police_dashboard_theme', next);
+    document.documentElement.setAttribute('data-theme', next);
+  };
+
   return (
-    <header className="h-16 bg-white border-b border-subtle-border flex items-center justify-between px-6 shadow-sm flex-shrink-0 z-10">
-      
-      {/* Left section - Search */}
-      <div className="flex items-center flex-1 max-w-md relative">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search size={18} className="text-main-text/40" />
+    <header className="h-[74px] bg-gradient-to-r from-[#030D1E] via-[#06152F] to-[#040E20] border-b border-[#132B52] flex items-center justify-between px-4 lg:px-6 relative shadow-xl z-30 select-none">
+      {/* Background ambient red & blue subtle glow */}
+      <div 
+        className="absolute inset-0 pointer-events-none opacity-20"
+        style={{
+          background: 'radial-gradient(circle at 10% 50%, rgba(245, 34, 53, 0.25) 0%, transparent 40%), radial-gradient(circle at 90% 50%, rgba(22, 119, 255, 0.25) 0%, transparent 40%)'
+        }}
+      />
+
+      {/* Left: Perfectly Merged Pondicherry Police Emblem & Typography */}
+      <div className="flex items-center gap-3.5 z-10">
+        <div className="relative group flex items-center justify-center cursor-pointer">
+          {/* Subtle golden & sapphire aura glow behind emblem */}
+          <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-[#1677FF]/50 via-[#FFD700]/40 to-[#F52235]/40 blur-md transform scale-125 group-hover:scale-135 transition-transform" />
+          
+          {/* Polished Glass & Golden Bezel Emblem Frame */}
+          <div className="w-[56px] h-[56px] rounded-full p-1 bg-gradient-to-b from-[#FFD700]/30 via-[#0A1B39]/80 to-[#030D1E] border-2 border-[#FFD700]/60 shadow-[0_4px_20px_rgba(0,0,0,0.6)] flex items-center justify-center backdrop-blur-md overflow-hidden relative">
+            <Image
+              src="/emblem.png"
+              alt="Pondicherry Police Official Crest"
+              width={50}
+              height={50}
+              className="object-contain drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] group-hover:scale-108 transition-all duration-300"
+              priority
+            />
+            {/* Subtle light sweep reflection */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent pointer-events-none rounded-full" />
+          </div>
         </div>
-        <input 
-          type="text" 
-          placeholder={t.dashboard.search}
-          className="block w-full pl-10 pr-3 py-2 border border-subtle-border rounded-md leading-5 bg-ivory/30 placeholder-main-text/40 focus:outline-none focus:ring-1 focus:ring-police focus:border-police sm:text-sm transition-colors"
-        />
+
+        <div className="flex flex-col">
+          <div className="flex items-center gap-2">
+            <h1 className="text-white font-black text-base lg:text-lg tracking-wider leading-tight drop-shadow-sm font-sans">
+              {t.common.appName}
+            </h1>
+            {/* Red & Blue Police Flasher dots with emergency beacon glow */}
+            <div className="flex items-center gap-1.5 ml-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#F52235] shadow-[0_0_10px_#F52235] animate-pulse" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#1677FF] shadow-[0_0_10px_#1677FF] animate-pulse" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[#38BDF8] text-[11px] lg:text-xs font-black tracking-[0.22em] uppercase">
+              {t.common.appSubtitle}
+            </span>
+            <span className="hidden sm:inline text-[9px] font-bold px-1.5 py-0.2 rounded bg-[#1677FF]/20 text-[#38BDF8] border border-[#1677FF]/40 tracking-wider">
+              HQ CONTROL
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* Right section - Controls */}
-      <div className="flex items-center gap-6 ml-4">
-        
-        {/* Time Display */}
-        <div className="hidden md:flex items-center text-sm text-main-text/70 gap-2">
-          <Clock size={16} />
-          <span>
-            {currentTime ? currentTime.toLocaleDateString('en-IN', {
-              timeZone: 'Asia/Kolkata',
-              day: 'numeric', month: 'short', year: 'numeric'
-            }) : ''}
-            {' | '}
-            {currentTime ? currentTime.toLocaleTimeString('en-IN', {
-              timeZone: 'Asia/Kolkata',
-              hour: '2-digit', minute: '2-digit'
-            }) : ''}
+      {/* Center: Mottos */}
+      <div className="hidden xl:flex items-center gap-4 text-xs font-bold text-white/90 z-10 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md shadow-inner">
+        <span className="hover:text-[#38BDF8] transition-colors">{t.common.motto1}</span>
+        <span className="w-1.5 h-1.5 rounded-full bg-[#F52235]" />
+        <span className="hover:text-[#38BDF8] transition-colors">{t.common.motto2}</span>
+        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+        <span className="hover:text-[#38BDF8] transition-colors">{t.common.motto3}</span>
+      </div>
+
+      {/* Right: Live Status, Clock, Theme Switcher, Language Switcher, Profile */}
+      <div className="flex items-center gap-2.5 lg:gap-4 z-10">
+        {/* Live System Indicator */}
+        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#0A1B39] border border-[#F52235]/40 shadow-[0_0_12px_rgba(245,34,53,0.25)]">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#F52235] opacity-75" />
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#F52235]" />
+          </span>
+          <span className="text-xs font-bold text-white tracking-wide">
+            {t.common.liveSystem}
           </span>
         </div>
 
-        {/* Language Toggle */}
-        <div className="flex items-center bg-ivory/50 rounded-md p-1 border border-subtle-border">
-          <Globe size={14} className="mx-2 text-main-text/50" />
-          <button 
+        {/* Live Digital Clock */}
+        <div className="hidden sm:flex items-center gap-2 text-xs font-mono font-bold text-white bg-[#0A1B39]/90 px-3 py-1 rounded-md border border-[#1677FF]/40 shadow-xs">
+          <span className="text-[#AFC4E8]">{currentDate}</span>
+          <span className="text-[#F52235] font-extrabold">|</span>
+          <span className="text-white tracking-wider font-extrabold">{currentTime}</span>
+        </div>
+
+        {/* Theme Mode Switcher (White & Red & Blue / Tactical Navy) */}
+        <button
+          onClick={toggleTheme}
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
+            themeMode === 'white'
+              ? 'bg-white text-[#0A192F] border-white shadow-md'
+              : 'bg-[#0A1B39] text-white border-white/20 hover:border-[#38BDF8]'
+          }`}
+          title="Toggle White Command / Tactical Navy theme"
+        >
+          {themeMode === 'white' ? (
+            <>
+              <Sun size={13} className="text-[#FFB800]" />
+              <span className="hidden md:inline">White Mode</span>
+            </>
+          ) : (
+            <>
+              <Moon size={13} className="text-[#38BDF8]" />
+              <span className="hidden md:inline">Navy Mode</span>
+            </>
+          )}
+        </button>
+
+        {/* Language Toggle Pill */}
+        <div className="flex items-center p-0.5 rounded-full bg-[#0A1B39] border border-white/15 shadow-xs">
+          <button
+            onClick={() => setLang('en')}
+            className={`px-2.5 py-1 rounded-full text-xs font-black transition-all ${
+              lang === 'en'
+                ? 'bg-[#1677FF] text-white shadow-xs'
+                : 'text-[#AFC4E8] hover:text-white'
+            }`}
+          >
+            EN
+          </button>
+          <button
             onClick={() => setLang('ta')}
-            className={`px-2 py-1 text-xs font-semibold rounded-sm transition-colors ${lang === 'ta' ? 'bg-white shadow-sm text-police' : 'text-main-text/60 hover:text-main-text'}`}
+            className={`px-2.5 py-1 rounded-full text-xs font-black transition-all ${
+              lang === 'ta'
+                ? 'bg-[#F52235] text-white shadow-xs'
+                : 'text-[#AFC4E8] hover:text-white'
+            }`}
           >
             தமிழ்
           </button>
-          <button 
-            onClick={() => setLang('en')}
-            className={`px-2 py-1 text-xs font-semibold rounded-sm transition-colors ${lang === 'en' ? 'bg-white shadow-sm text-police' : 'text-main-text/60 hover:text-main-text'}`}
-          >
-            ENG
-          </button>
         </div>
 
-        {/* Notifications */}
-        <button className="relative p-2 text-main-text/70 hover:text-police transition-colors rounded-full hover:bg-ivory">
-          <Bell size={20} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-urgent border-2 border-white"></span>
-        </button>
-
-        {/* Profile */}
-        <div className="flex items-center gap-3 pl-4 border-l border-subtle-border">
-          <div className="flex flex-col items-end hidden sm:flex">
-            <span className="text-sm font-semibold text-main-text">Officer Selvam</span>
-            <span className="text-xs text-main-text/60">Traffic Supervisor</span>
+        {/* Officer Profile */}
+        <div className="flex items-center gap-2.5 pl-2 lg:pl-3 border-l border-white/15">
+          <div className="w-8 h-8 rounded-full bg-[#002B67] border-2 border-[#38BDF8] flex items-center justify-center text-white shadow-sm">
+            <User size={15} />
           </div>
-          <div className="w-9 h-9 rounded-full bg-police flex items-center justify-center text-white cursor-pointer shadow-sm">
-            <User size={18} />
+          <div className="hidden md:flex flex-col text-left">
+            <span className="text-xs font-extrabold text-white leading-tight">
+              {t.common.controlRoom}
+            </span>
+            <span className="text-[10px] text-[#AFC4E8] font-medium leading-tight">
+              {t.common.deptName}
+            </span>
           </div>
         </div>
-        
       </div>
+
+      {/* Signature Police Tri-Color (Red, White & Blue) Bottom Ribbon Line */}
+      <div 
+        className="absolute bottom-0 left-0 right-0 h-[3.5px] z-20"
+        style={{
+          background: 'linear-gradient(90deg, #F52235 0%, #F52235 32%, #FFFFFF 32%, #FFFFFF 68%, #1677FF 68%, #1677FF 100%)',
+          boxShadow: '0 0 10px rgba(245, 34, 53, 0.4), 0 0 10px rgba(22, 119, 255, 0.4)'
+        }}
+      />
     </header>
   );
 }

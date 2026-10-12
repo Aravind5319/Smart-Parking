@@ -3,70 +3,116 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import Image from 'next/image';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
-import { LayoutDashboard, AlertTriangle, Map as MapIcon, ParkingSquare, BrainCircuit, Car, BarChart3, ShieldCheck, Settings } from 'lucide-react';
+import { useSidebar } from '@/lib/context/SidebarContext';
+import { 
+  Home, 
+  Video, 
+  Network, 
+  Megaphone, 
+  MapPin, 
+  BarChart2, 
+  Settings,
+  Shield,
+  ChevronLeft,
+  ChevronRight
+} from 'lucide-react';
 
 export function Sidebar() {
   const { t } = useLanguage();
   const pathname = usePathname();
+  const { isCollapsed, toggleSidebar } = useSidebar();
 
   const navItems = [
-    { href: '/dashboard', label: t.dashboard.overview, icon: LayoutDashboard },
-    { href: '/reports', label: t.dashboard.reports, icon: AlertTriangle },
-    { href: '/map', label: t.dashboard.map, icon: MapIcon },
-    { href: '/zones', label: t.dashboard.zones, icon: ParkingSquare },
-    { href: '/predictions', label: t.dashboard.predictions, icon: BrainCircuit },
-    { href: '/patrols', label: t.dashboard.patrols, icon: Car },
-    { href: '/analytics', label: t.dashboard.analytics, icon: BarChart3 },
-    { href: '/audit', label: t.dashboard.audit, icon: ShieldCheck },
-    { href: '/settings', label: t.dashboard.settings, icon: Settings },
+    { href: '/dashboard', label: t.nav.dashboard, icon: Home, accent: '#F52235' },
+    { href: '/cameras', label: t.nav.liveCameras, icon: Video, accent: '#1677FF' },
+    { href: '/traffic', label: t.nav.trafficControl, icon: Network, accent: '#F52235' },
+    { href: '/citizen-reports', label: t.nav.citizenReports, icon: Megaphone, accent: '#F52235' },
+    { href: '/lost-found', label: t.nav.lostFound, icon: MapPin, accent: '#1677FF' },
+    { href: '/reports', label: t.nav.reports, icon: BarChart2, accent: '#1677FF' },
+    { href: '/settings', label: t.nav.settings, icon: Settings, accent: '#AFC4E8' },
   ];
 
-  return (
-    <aside className="w-[240px] bg-navy text-ivory flex-shrink-0 flex flex-col min-h-screen">
-      <div className="h-16 flex items-center justify-center border-b border-police/30 px-4">
-        {/* Puducherry Police Logo */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center overflow-hidden border border-sandstone/30 shadow-sm shrink-0">
-            <Image src="/logo police dashboard.jpg" alt="Puducherry Police" width={40} height={40} className="object-contain w-full h-full p-0.5" />
-          </div>
-          <span className="font-bold text-lg tracking-wide">ParkPuduvai</span>
-        </div>
+  if (isCollapsed) {
+    return (
+      <div className="relative z-30 select-none">
+        {/* Sleek Floating Docked Inserting Button to Restore Sidebar */}
+        <button
+          onClick={toggleSidebar}
+          className="absolute top-3 left-2 z-40 p-2 rounded-r-xl bg-gradient-to-r from-[#0A1B39] to-[#0E2652] text-white hover:text-[#38BDF8] border border-l-0 border-[#1677FF]/50 shadow-[0_4px_16px_rgba(0,0,0,0.5)] flex items-center gap-1.5 transition-all hover:scale-105 group"
+          title="Show Command Modules Sidebar"
+          aria-label="Expand sidebar"
+        >
+          <ChevronRight size={16} className="text-[#1677FF] group-hover:translate-x-0.5 transition-transform" />
+          <Shield size={14} className="text-[#38BDF8]" />
+          <span className="text-[10px] font-black tracking-wider uppercase pr-1 hidden sm:inline text-white/90">
+            Modules
+          </span>
+        </button>
       </div>
-      
-      <div className="py-2 px-4 text-xs font-semibold text-sandstone/80 uppercase tracking-wider mb-2 mt-4">
-        {t.dashboard.title}
-      </div>
+    );
+  }
 
-      <nav className="flex-1 px-3 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
-          const isActive = pathname.startsWith(item.href);
-          const Icon = item.icon;
-          
-          return (
-            <Link 
-              key={item.href} 
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors ${
-                isActive 
-                  ? 'bg-police text-white border-l-2 border-amber shadow-sm' 
-                  : 'text-ivory/80 hover:bg-police/50 hover:text-white'
-              }`}
-            >
-              <Icon size={18} className={isActive ? 'text-amber' : 'text-ivory/60'} />
-              <span className="text-sm font-medium">{item.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-      
-      <div className="p-4 border-t border-police/30 text-xs text-ivory/50">
-        <div className="flex items-center gap-2 mb-1">
-          <div className="w-2 h-2 rounded-full bg-teal animate-pulse"></div>
-          <span>System Online</span>
+  return (
+    <aside className="w-[180px] lg:w-[200px] bg-gradient-to-b from-[#030D1E] via-[#06152F] to-[#020914] border-r border-[#132B52] flex-shrink-0 flex flex-col justify-between h-[calc(100vh-74px)] select-none z-20 transition-all duration-300 ease-in-out">
+      {/* Navigation Buttons */}
+      <nav className="p-3 space-y-2 mt-1">
+        {/* Header with Title and Inserting/Hide Button */}
+        <div className="px-1.5 pb-2 border-b border-white/10 flex items-center justify-between">
+          <div className="text-[10px] font-black tracking-widest text-[#AFC4E8]/80 uppercase flex items-center gap-1.5">
+            <Shield size={12} className="text-[#1677FF]" /> Command Modules
+          </div>
+          {/* Inserting / Collapse button (Chevron Left <) */}
+          <button
+            onClick={toggleSidebar}
+            className="p-1 rounded-md bg-white/5 hover:bg-[#F52235]/20 text-[#AFC4E8] hover:text-white border border-white/10 hover:border-[#F52235]/40 transition-all flex items-center justify-center cursor-pointer shadow-xs"
+            title="Hide sidebar (More space for dashboard)"
+            aria-label="Hide sidebar"
+          >
+            <ChevronLeft size={15} />
+          </button>
         </div>
-        <p>Govt of Puducherry</p>
+
+        <div className="space-y-1.5 pt-1">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href || (item.href === '/dashboard' && pathname === '/');
+            const Icon = item.icon;
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-bold tracking-wide transition-all ${
+                  isActive
+                    ? 'bg-gradient-to-r from-[#F52235] to-[#B01222] text-white shadow-[0_4px_16px_rgba(245,34,53,0.45)] border border-[#F52235]'
+                    : 'text-white/80 hover:text-white hover:bg-white/10 border border-transparent'
+                }`}
+              >
+                <Icon size={16} className={isActive ? 'text-white' : 'text-[#AFC4E8]'} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* Bottom Heritage Watermark & Department Label */}
+      <div className="p-4 border-t border-white/10 flex flex-col items-center text-center relative overflow-hidden bg-black/20">
+        <div className="w-16 h-12 opacity-25 mb-1.5 flex items-center justify-center text-[#1677FF] pointer-events-none">
+          <svg viewBox="0 0 100 100" fill="currentColor" className="w-full h-full">
+            <path d="M50 10 L55 25 L75 25 L75 85 L25 85 L25 25 L45 25 Z" fill="none" stroke="currentColor" strokeWidth="2.5" />
+            <circle cx="50" cy="40" r="12" fill="none" stroke="currentColor" strokeWidth="2.5" />
+            <rect x="35" y="60" width="30" height="25" fill="none" stroke="currentColor" strokeWidth="2.5" />
+            <line x1="15" y1="85" x2="85" y2="85" stroke="currentColor" strokeWidth="3" />
+            <path d="M50 5 L50 15 M45 10 L55 10" stroke="currentColor" strokeWidth="2" />
+          </svg>
+        </div>
+        <span className="text-white font-black text-xs tracking-wider">
+          Puducherry
+        </span>
+        <span className="text-[10px] text-[#AFC4E8] font-bold uppercase tracking-widest mt-0.5">
+          Police Department
+        </span>
       </div>
     </aside>
   );

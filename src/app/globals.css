@@ -1,37 +1,200 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 @theme {
-  --color-navy: #142A43;
-  --color-police: #1D4E89;
-  --color-ivory: #F7F4ED;
-  --color-sandstone: #D9C7AA;
-  --color-teal: #168B83;
-  --color-amber: #E6A23C;
-  --color-urgent: #C84646;
-  --color-main-text: #253449;
-  --color-subtle-border: #DDE3EA;
-  --color-background: var(--color-ivory);
-  --color-foreground: var(--color-main-text);
-
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-navy: #06152F;
+  --color-navy-dark: #030D1E;
+  --color-card-bg: #0A1B39;
+  --color-card-border: #132B52;
+  --color-deep-blue: #002B67;
+  --color-police-red: #F52235;
+  --color-police-blue: #1677FF;
+  --color-police-cyan: #13C2C2;
+  --color-police-green: #00D68F;
+  --color-police-amber: #FFB800;
+  --color-text-primary: #FFFFFF;
+  --color-text-secondary: #AFC4E8;
+  --color-text-muted: #6B87B5;
 }
 
 :root {
-  --background: #F7F4ED;
-  --foreground: #253449;
+  --background: #06152F;
+  --foreground: #FFFFFF;
+  --card-bg: #0A1B39;
+  --card-border: #1A365D;
+  --card-inner: #06152F;
+  --card-inner-border: #132B52;
+  --text-main: #FFFFFF;
+  --text-sub: #AFC4E8;
+  --text-subtle: #6B87B5;
+  --header-bg: linear-gradient(to right, #030D1E, #06152F, #040E20);
+  --header-border: #132B52;
+  --badge-bg: #06152F;
+  --badge-border: #132B52;
+  --scrollbar-track: rgba(6, 21, 47, 0.4);
+  --scrollbar-thumb: #1677FF;
+}
+
+/* Light / White Police Command Theme - Crisp, High Contrast, Executive */
+[data-theme="white"] {
+  --background: #F1F5F9;
+  --foreground: #0F172A;
+  --card-bg: #FFFFFF;
+  --card-border: #E2E8F0;
+  --card-inner: #F8FAFC;
+  --card-inner-border: #E2E8F0;
+  --text-main: #0F172A;
+  --text-sub: #334155;
+  --text-subtle: #64748B;
+  --header-bg: linear-gradient(to right, #081630, #0E244D, #081630);
+  --header-border: #1E3A6B;
+  --badge-bg: #F1F5F9;
+  --badge-border: #CBD5E1;
+  --scrollbar-track: #F1F5F9;
+  --scrollbar-thumb: #94A3B8;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
   margin: 0;
   padding: 0;
+  font-family: var(--font-sans, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  overflow-x: hidden;
+  user-select: none;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 4px;
+}
+
+/* Radar pulse animation */
+@keyframes radar-pulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.85;
   }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.35;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.85;
+  }
+}
+
+.radar-glow {
+  animation: radar-pulse 2.2s infinite ease-in-out;
+}
+
+/* Police Beacon Glow Effects */
+.police-beacon-red {
+  box-shadow: 0 0 14px rgba(245, 34, 53, 0.9), inset 0 0 6px rgba(255, 255, 255, 0.5);
+}
+
+.police-beacon-blue {
+  box-shadow: 0 0 14px rgba(22, 119, 255, 0.9), inset 0 0 6px rgba(255, 255, 255, 0.5);
+}
+
+.traffic-light-red {
+  box-shadow: 0 0 16px rgba(245, 34, 53, 0.9), inset 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+.traffic-light-green {
+  box-shadow: 0 0 18px rgba(0, 214, 143, 0.95), inset 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+/* Premium Card Containers */
+.police-card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s ease;
+}
+
+.police-card:hover {
+  border-color: rgba(22, 119, 255, 0.6);
+  box-shadow: 0 6px 24px rgba(22, 119, 255, 0.15);
+}
+
+/* White mode overrides for cards */
+[data-theme="white"] .police-card {
+  background-color: #FFFFFF;
+  border-color: #E2E8F0;
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="white"] .police-card:hover {
+  border-color: #3B82F6;
+  box-shadow: 0 8px 24px -2px rgba(15, 23, 42, 0.12), 0 4px 10px -1px rgba(15, 23, 42, 0.06);
+}
+
+/* Reusable Theme Tokens for Components */
+.theme-title {
+  color: var(--text-main);
+}
+
+.theme-sub {
+  color: var(--text-sub);
+}
+
+.theme-subtle {
+  color: var(--text-subtle);
+}
+
+.theme-inner-card {
+  background-color: var(--card-inner);
+  border-color: var(--card-inner-border);
+}
+
+/* Ensure Leaflet controls work seamlessly with modern UI */
+.leaflet-container {
+  font-family: inherit;
+  z-index: 10;
+}
+
+.leaflet-control-zoom {
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+.leaflet-control-zoom a {
+  background: #0A1B39 !important;
+  color: #FFFFFF !important;
+  border-bottom: 1px solid #132B52 !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background: #1677FF !important;
+  color: #FFFFFF !important;
+}
+
+[data-theme="white"] .leaflet-control-zoom a {
+  background: #FFFFFF !important;
+  color: #0F172A !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+}
+
+[data-theme="white"] .leaflet-control-zoom a:hover {
+  background: #F1F5F9 !important;
+  color: #1677FF !important;
 }

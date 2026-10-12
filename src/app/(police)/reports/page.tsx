@@ -2,119 +2,200 @@
 
 import React, { useState } from 'react';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
-import { Search, Filter, Eye, Check, X, ShieldAlert } from 'lucide-react';
-
-const mockReports = [
-  { id: 'REP-24-9824', type: 'Illegal Parking', reg: 'TN-32-AB-1234', location: 'Mission Street', time: '12m ago', priority: 'High', status: 'Pending' },
-  { id: 'REP-24-9825', type: 'No Helmet', reg: 'PY-01-CV-9876', location: 'JN Street', time: '45m ago', priority: 'Medium', status: 'Pending' },
-  { id: 'REP-24-9826', type: 'Traffic Signal Jump', reg: 'TN-01-ZX-5555', location: 'Goubert Avenue', time: '1h ago', priority: 'High', status: 'Under Review' },
-  { id: 'REP-24-9827', type: 'Wrong Way', reg: 'PY-05-AB-1111', location: 'Dumas Street', time: '2h ago', priority: 'High', status: 'Verified' },
-  { id: 'REP-24-9828', type: 'Over-speeding', reg: 'TN-31-XY-9999', location: 'ECR Road', time: '3h ago', priority: 'Medium', status: 'Action Taken' },
-];
+import { parkingService } from '@/lib/services/parkingService';
+import { trafficSignalService } from '@/lib/services/trafficSignalService';
+import { citizenReportsService } from '@/lib/services/citizenReportsService';
+import { BarChart2, Download, Search, FileText, CheckCircle2, Shield, Calendar } from 'lucide-react';
 
 export default function ReportsPage() {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState('All');
+  const [activeCategory, setActiveCategory] = useState<'challans' | 'traffic' | 'citizen'>('challans');
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const tabs = ['All', 'New', 'Under Review', 'Verified', 'Action Taken', 'Dismissed'];
+  const challans = parkingService.getChallans();
+  const trafficEvents = trafficSignalService.getEvents();
+  const citizenReports = citizenReportsService.getReports();
+
+  const handleExportCSV = () => {
+    let csvContent = 'data:text/csv;charset=utf-8,';
+    if (activeCategory === 'challans') {
+      csvContent += 'ID,Vehicle,Type,Location,Fine,Status,Time\n';
+      challans.forEach((c) => {
+        csvContent += `${c.id},"${c.vehicleNo}","${c.violationType}","${c.location}",${c.fineAmount},"${c.status}","${c.timestamp}"\n`;
+      });
+    } else if (activeCategory === 'traffic') {
+      csvContent += 'ID,Event,Type,Time\n';
+      trafficEvents.forEach((e) => {
+        csvContent += `${e.id},"${e.title}","${e.type}","${e.timestamp}"\n`;
+      });
+    } else {
+      csvContent += 'ID,Title,Location,Status,Reporter,Time\n';
+      citizenReports.forEach((r) => {
+        csvContent += `${r.id},"${r.title}","${r.location}","${r.status}","${r.reporterName}","${r.reportedTime}"\n`;
+      });
+    }
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `Pondicherry_Police_${activeCategory}_export.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg shadow-sm border border-subtle-border">
-      
-      <div className="p-4 border-b border-subtle-border flex items-center justify-between">
-        <h1 className="text-xl font-bold text-main-text">{t.dashboard.reports}</h1>
-        <div className="flex gap-2">
-          <button className="flex items-center gap-2 px-3 py-1.5 bg-ivory text-main-text font-medium text-sm rounded-md border border-subtle-border hover:bg-subtle-border transition-colors">
-            <Filter size={16} />
-            Filters
-          </button>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none">
-              <Search size={16} className="text-main-text/40" />
-            </div>
-            <input 
-              type="text" 
-              placeholder="Search reports..."
-              className="block w-64 pl-8 pr-3 py-1.5 border border-subtle-border rounded-md leading-5 bg-white placeholder-main-text/40 focus:outline-none focus:ring-1 focus:ring-police focus:border-police sm:text-sm"
-            />
+    <div className="h-full flex flex-col gap-3 text-white overflow-y-auto pr-1">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-[#132B52] gap-2">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-[#1677FF]/20 border border-[#1677FF]/40 flex items-center justify-center text-[#1677FF]">
+            <BarChart2 size={20} />
           </div>
+          <div>
+            <h1 className="text-base font-extrabold text-white tracking-wide">
+              {t.nav.reports} — Enforcement Audit & Event Log
+            </h1>
+            <p className="text-xs text-[#AFC4E8]/70">
+              Downloadable audit records for parking violations, automated e-challans, and emergency corridor transitions
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            className="px-3.5 py-1.5 rounded-lg bg-[#00D68F] hover:bg-[#00D68F]/80 text-[#06152F] font-extrabold text-xs flex items-center gap-1.5 shadow-xs transition-colors shrink-0"
+          >
+            <Download size={14} />
+            <span>Export CSV</span>
+          </button>
         </div>
       </div>
 
-      <div className="px-4 py-2 border-b border-subtle-border flex gap-4 overflow-x-auto">
-        {tabs.map(tab => (
-          <button 
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-3 py-1.5 text-sm font-medium whitespace-nowrap rounded-md transition-colors ${
-              activeTab === tab ? 'bg-police text-white' : 'text-main-text/70 hover:bg-ivory'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+      {/* Category Tabs */}
+      <div className="flex gap-2 border-b border-[#132B52] pb-2">
+        <button
+          onClick={() => setActiveCategory('challans')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            activeCategory === 'challans'
+              ? 'bg-[#F52235] text-white shadow-xs'
+              : 'bg-[#0A1B39] text-[#AFC4E8] hover:text-white'
+          }`}
+        >
+          E-Challans & Violations ({challans.length})
+        </button>
+        <button
+          onClick={() => setActiveCategory('traffic')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            activeCategory === 'traffic'
+              ? 'bg-[#1677FF] text-white shadow-xs'
+              : 'bg-[#0A1B39] text-[#AFC4E8] hover:text-white'
+          }`}
+        >
+          Ambulance & Geofence Log ({trafficEvents.length})
+        </button>
+        <button
+          onClick={() => setActiveCategory('citizen')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            activeCategory === 'citizen'
+              ? 'bg-[#00D68F] text-black shadow-xs font-extrabold'
+              : 'bg-[#0A1B39] text-[#AFC4E8] hover:text-white'
+          }`}
+        >
+          Citizen Incidents ({citizenReports.length})
+        </button>
       </div>
 
-      <div className="flex-1 overflow-auto">
-        <table className="min-w-full divide-y divide-subtle-border">
-          <thead className="bg-ivory/50 sticky top-0">
-            <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-main-text/60 uppercase tracking-wider">Ref ID</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-main-text/60 uppercase tracking-wider">Violation</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-main-text/60 uppercase tracking-wider">Vehicle</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-main-text/60 uppercase tracking-wider">Location</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-main-text/60 uppercase tracking-wider">Time</th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-main-text/60 uppercase tracking-wider">Status</th>
-              <th scope="col" className="px-6 py-3 text-right text-xs font-semibold text-main-text/60 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-subtle-border">
-            {mockReports.map((report) => (
-              <tr key={report.id} className="hover:bg-ivory/20 transition-colors">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-mono font-semibold text-police">
-                  {report.id}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    {report.priority === 'High' && <ShieldAlert size={16} className="text-urgent mr-2" />}
-                    <span className="text-sm font-medium text-main-text">{report.type}</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-main-text/80 font-mono">
-                  {report.reg}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-main-text/80">
-                  {report.location}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-main-text/60">
-                  {report.time}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                    ${report.status === 'Pending' ? 'bg-amber/10 text-amber' : 
-                      report.status === 'Under Review' ? 'bg-police/10 text-police' : 
-                      report.status === 'Verified' ? 'bg-teal/10 text-teal' :
-                      'bg-main-text/10 text-main-text'}`}>
-                    {report.status}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium flex justify-end gap-2">
-                  <button className="text-police hover:text-police/80 bg-police/5 p-1.5 rounded-md" title="Review">
-                    <Eye size={16} />
-                  </button>
-                  <button className="text-teal hover:text-teal/80 bg-teal/5 p-1.5 rounded-md" title="Verify">
-                    <Check size={16} />
-                  </button>
-                  <button className="text-urgent hover:text-urgent/80 bg-urgent/5 p-1.5 rounded-md" title="Dismiss">
-                    <X size={16} />
-                  </button>
-                </td>
+      {/* Main Table */}
+      <div className="police-card rounded-xl p-3 flex-1 overflow-x-auto">
+        {activeCategory === 'challans' && (
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-[#132B52] text-[#AFC4E8]">
+                <th className="p-2">Challan ID</th>
+                <th className="p-2">Vehicle No</th>
+                <th className="p-2">Violation</th>
+                <th className="p-2">Location</th>
+                <th className="p-2">Duration</th>
+                <th className="p-2">Penalty</th>
+                <th className="p-2">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {challans.map((c) => (
+                <tr key={c.id} className="border-b border-[#132B52]/50 hover:bg-[#0A1B39]/50">
+                  <td className="p-2 font-mono font-bold text-white">{c.id}</td>
+                  <td className="p-2 font-mono font-bold text-[#F52235]">{c.vehicleNo}</td>
+                  <td className="p-2 text-[#AFC4E8]">{c.violationType}</td>
+                  <td className="p-2 text-[#AFC4E8]">{c.location}</td>
+                  <td className="p-2 text-[#FFB800]">{c.durationMinutes} Mins</td>
+                  <td className="p-2 font-bold text-[#00D68F]">₹{c.fineAmount}</td>
+                  <td className="p-2">
+                    <span className="px-2 py-0.5 rounded bg-[#F52235]/20 text-[#F52235] text-[10px] font-bold">
+                      {c.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {activeCategory === 'traffic' && (
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-[#132B52] text-[#AFC4E8]">
+                <th className="p-2">Event ID</th>
+                <th className="p-2">Timestamp</th>
+                <th className="p-2">Event Type</th>
+                <th className="p-2">Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trafficEvents.map((e) => (
+                <tr key={e.id} className="border-b border-[#132B52]/50 hover:bg-[#0A1B39]/50">
+                  <td className="p-2 font-mono font-bold text-white">{e.id}</td>
+                  <td className="p-2 font-mono text-[#AFC4E8]">{e.timestamp}</td>
+                  <td className="p-2 font-bold text-[#1677FF]">{e.type}</td>
+                  <td className="p-2 text-white">{e.title}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {activeCategory === 'citizen' && (
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="border-b border-[#132B52] text-[#AFC4E8]">
+                <th className="p-2">Report ID</th>
+                <th className="p-2">Title</th>
+                <th className="p-2">Location</th>
+                <th className="p-2">Reporter</th>
+                <th className="p-2">Time</th>
+                <th className="p-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {citizenReports.map((r) => (
+                <tr key={r.id} className="border-b border-[#132B52]/50 hover:bg-[#0A1B39]/50">
+                  <td className="p-2 font-mono font-bold text-white">{r.id}</td>
+                  <td className="p-2 font-bold text-white">{r.title}</td>
+                  <td className="p-2 text-[#AFC4E8]">{r.location}</td>
+                  <td className="p-2 text-[#AFC4E8]">{r.reporterName}</td>
+                  <td className="p-2 text-[#AFC4E8]/60 font-mono">{r.reportedTime}</td>
+                  <td className="p-2">
+                    <span className="px-2 py-0.5 rounded bg-[#1677FF]/20 text-[#1677FF] text-[10px] font-bold">
+                      {r.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
-      
     </div>
   );
 }
