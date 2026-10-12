@@ -25,7 +25,7 @@ import { AppwriteDb } from './src/services/appwriteDb';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('parking');
-  const [tickets, setTickets] = useState<ViolationReport[]>(MOCK_TICKETS);
+  const [tickets, setTickets] = useState<ViolationReport[]>([]);
   const [karmaPoints, setKarmaPoints] = useState<number>(150);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [showSplash, setShowSplash] = useState(true);

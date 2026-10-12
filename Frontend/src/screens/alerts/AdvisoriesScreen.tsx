@@ -3,22 +3,27 @@
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Platform, ActivityIndicator } from 'react-native';
 import { Colors } from '../../theme/colors';
-import { MOCK_ADVISORIES } from '../../data/mockData';
 import { SirenIcon } from '../../components/common/Icons';
 import { AppwriteDb } from '../../services/appwriteDb';
 import { TrafficAdvisory } from '../../types/navigation';
 
 export const AdvisoriesScreen: React.FC = () => {
-  const [advisories, setAdvisories] = useState<TrafficAdvisory[]>(MOCK_ADVISORIES);
+  const [advisories, setAdvisories] = useState<TrafficAdvisory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    AppwriteDb.fetchTrafficAdvisories().then((live) => {
-      if (live && live.length > 0) {
-        setAdvisories(live);
-      }
-    });
+    setIsLoading(true);
+    AppwriteDb.fetchTrafficAdvisories()
+      .then((live) => {
+        if (live && live.length > 0) {
+          setAdvisories(live);
+        }
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, []);
 
   return (
@@ -28,6 +33,15 @@ export const AdvisoriesScreen: React.FC = () => {
       <Text style={styles.pageSub}>
         Live advisories issued by Puducherry Traffic Police HQ & Predictive Intelligence.
       </Text>
+
+      {isLoading && (
+        <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+          <ActivityIndicator size="small" color="#0B2559" />
+          <Text style={{ marginTop: 8, fontSize: 12, color: '#64748B', fontWeight: '600' }}>
+            Fetching live advisories from Police Control Room...
+          </Text>
+        </View>
+      )}
 
       {/* Advisory Cards */}
       {advisories.map((adv) => {

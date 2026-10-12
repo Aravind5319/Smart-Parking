@@ -10,6 +10,7 @@ import {
   Alert,
   Linking,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import * as Location from 'expo-location';
 import { Colors } from '../../theme/colors';
@@ -59,7 +60,8 @@ const PARKING_IMAGES: Record<string, any> = {
 
 export const FindParkingScreen: React.FC = () => {
   const [vehicleType, setVehicleType] = useState<VehicleType>('CAR');
-  const [zones, setZones] = useState<ParkingZone[]>(REAL_PUDUCHERRY_ZONES);
+  const [zones, setZones] = useState<ParkingZone[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [spotlightZone, setSpotlightZone] = useState<ParkingZone | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<TripPlanSuggestion | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -71,27 +73,32 @@ export const FindParkingScreen: React.FC = () => {
   });
 
   useEffect(() => {
-    AppwriteDb.fetchParkingZones().then((realZones) => {
-      if (realZones && realZones.length > 0) {
-        setZones(realZones);
-        // Pre-select the top available spot for vehicle type
-        const nearest = getNearestAvailableParking(
-          { latitude: 11.9338, longitude: 79.8310 },
-          undefined,
-          vehicleType
-        );
-        if (nearest) {
-          setSpotlightZone(nearest);
+    setIsLoading(true);
+    AppwriteDb.fetchParkingZones()
+      .then((realZones) => {
+        if (realZones && realZones.length > 0) {
+          setZones(realZones);
+          // Pre-select the top available spot for vehicle type
+          const nearest = getNearestAvailableParking(
+            { latitude: 11.9338, longitude: 79.8310 },
+            realZones,
+            vehicleType
+          );
+          if (nearest) {
+            setSpotlightZone(nearest);
+          }
         }
-      }
-    });
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, []);
 
   // When vehicle type changes, refresh spotlight recommendation
   const handleVehicleChange = (type: VehicleType) => {
     setVehicleType(type);
     const loc = userLocation || { latitude: 11.9338, longitude: 79.8310 };
-    const nearest = getNearestAvailableParking(loc, undefined, type);
+    const nearest = getNearestAvailableParking(loc, zones, type);
     if (nearest) {
       setSpotlightZone(nearest);
     }
@@ -119,7 +126,7 @@ export const FindParkingScreen: React.FC = () => {
       }
 
       setUserLocation(coords);
-      const nearest = getNearestAvailableParking(coords, undefined, vehicleType);
+      const nearest = getNearestAvailableParking(coords, zones, vehicleType);
       if (nearest) {
         setSpotlightZone(nearest);
         Alert.alert(
@@ -202,27 +209,14 @@ export const FindParkingScreen: React.FC = () => {
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-      
-      {/* 1. Official Puducherry Police Department Ribbon */}
-      <View style={styles.policeRibbon}>
-        <View style={styles.policeRibbonLeft}>
-          <Image
-            source={require('../../../assets/police_logo.png')}
-            style={styles.ribbonLogo}
-            resizeMode="contain"
-          />
-          <View>
-            <Text style={styles.ribbonDept}>PUDUCHERRY TRAFFIC POLICE</Text>
-            <Text style={styles.ribbonSub}>SMART CIVIC PARKING ASSISTANT</Text>
-          </View>
+      {isLoading && (
+        <View style={styles.loadingBanner}>
+          <ActivityIndicator size="small" color="#0B2559" />
+          <Text style={styles.loadingBannerText}>Syncing live bays from Puducherry Police Database...</Text>
         </View>
-        <View style={styles.ribbonBadge}>
-          <View style={styles.ribbonDot} />
-          <Text style={styles.ribbonBadgeText}>CORRIDOR LIVE</Text>
-        </View>
-      </View>
+      )}
 
-      {/* 2. Step 1: Vehicle Selector (Car vs Bike) */}
+      {/* 1. Step 1: Vehicle Selector (Car vs Bike) */}
       <View style={styles.cardSection}>
         <Text style={styles.sectionTitle}>SELECT VEHICLE TYPE</Text>
         <View style={styles.vehicleRow}>
@@ -314,7 +308,11 @@ export const FindParkingScreen: React.FC = () => {
             {/* Real Photographic Header */}
             <View style={styles.imageHeaderWrapper}>
               <Image
-                source={PARKING_IMAGES[spotlightZone.id] || PARKING_IMAGES.default}
+                source={
+                  spotlightZone.imageUrl
+                    ? { uri: spotlightZone.imageUrl }
+                    : PARKING_IMAGES[spotlightZone.id] || PARKING_IMAGES.default
+                }
                 style={styles.parkingImage}
                 resizeMode="cover"
               />
@@ -497,7 +495,11 @@ export const FindParkingScreen: React.FC = () => {
               {/* Real Photographic View */}
               <View style={styles.cardImageContainer}>
                 <Image
-                  source={PARKING_IMAGES[zone.id] || PARKING_IMAGES.default}
+                  source={
+                    zone.imageUrl
+                      ? { uri: zone.imageUrl }
+                      : PARKING_IMAGES[zone.id] || PARKING_IMAGES.default
+                  }
                   style={styles.cardPhoto}
                   resizeMode="cover"
                 />
@@ -1364,5 +1366,25 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '900',
+  },
+  loadingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    gap: 8,
+  },
+  loadingBannerText: {
+    color: '#1E40AF',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

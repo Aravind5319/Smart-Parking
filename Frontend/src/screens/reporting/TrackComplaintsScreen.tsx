@@ -70,13 +70,23 @@ export const TrackComplaintsScreen: React.FC<TrackComplaintsScreenProps> = ({
 
       <Text style={styles.sectionHeader}>Your Submitted Complaints ({tickets.length})</Text>
 
-      {/* Vertical list of complaints, one after another */}
-      {tickets.map((ticket) => {
-        const isExpanded = !!expandedTickets[ticket.id];
-        const badge = getStatusBadge(ticket.status);
+      {tickets.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyTitle}>No Complaints on File</Text>
+          <Text style={styles.emptySub}>
+            All citizen reports submitted through the app are logged in the Puducherry Police database and tracked here in real-time.
+          </Text>
+          <TouchableOpacity style={styles.emptyActionBtn} onPress={onNavigateToReport} activeOpacity={0.85}>
+            <Text style={styles.emptyActionText}>Report a Parking Violation</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        tickets.map((ticket) => {
+          const isExpanded = !!expandedTickets[ticket.id];
+          const badge = getStatusBadge(ticket.status);
 
-        return (
-          <View key={ticket.id} style={styles.complaintCard}>
+          return (
+            <View key={ticket.id} style={styles.complaintCard}>
             {/* Clickable Card Header / Accordion Trigger */}
             <TouchableOpacity
               style={styles.cardHeaderTrigger}
@@ -252,7 +262,8 @@ export const TrackComplaintsScreen: React.FC<TrackComplaintsScreenProps> = ({
             )}
           </View>
         );
-      })}
+      })
+      )}
     </ScrollView>
   );
 };
@@ -537,5 +548,38 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: Colors.policeNavy,
     letterSpacing: 0.3,
+  },
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginTop: 8,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.policeNavyDark,
+    marginBottom: 8,
+  },
+  emptySub: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  emptyActionBtn: {
+    backgroundColor: Colors.policeNavy,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+  },
+  emptyActionText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

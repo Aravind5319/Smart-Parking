@@ -34,6 +34,7 @@ export interface ParkingZone {
   trafficLevel?: 'SMOOTH' | 'MODERATE' | 'CONGESTED';
   trafficDelayMin?: number;
   imageKey?: string;
+  imageUrl?: string;
 }
 
 export interface TripPlanSuggestion {
@@ -280,10 +281,14 @@ export const POPULAR_TRIP_PLANS: TripPlanSuggestion[] = [
   },
 ];
 
-export let MOCK_PARKING_ZONES: ParkingZone[] = [...REAL_PUDUCHERRY_ZONES];
+export let MOCK_PARKING_ZONES: ParkingZone[] = [];
+
+export const updateLiveParkingZones = (newZones: ParkingZone[]) => {
+  MOCK_PARKING_ZONES = [...newZones];
+};
 
 export const fetchRealParkingZones = async (): Promise<ParkingZone[]> => {
-  return REAL_PUDUCHERRY_ZONES;
+  return MOCK_PARKING_ZONES;
 };
 
 export const getDistance = (loc1: LocationCoordinates, loc2: LocationCoordinates) => {
@@ -292,12 +297,26 @@ export const getDistance = (loc1: LocationCoordinates, loc2: LocationCoordinates
   return parseFloat(Math.sqrt(dx * dx + dy * dy).toFixed(2));
 };
 
-export const getNearestAvailableParking = (targetLocation: LocationCoordinates, excludeId?: string, vehicleType: 'CAR' | 'BIKE' = 'CAR'): ParkingZone | null => {
-  const available = MOCK_PARKING_ZONES.filter(
-    z => z.type === 'PARKING_GREEN' && !z.isFull && z.id !== excludeId &&
-      (vehicleType === 'BIKE' ? z.vehicleTypes?.includes('2-Wheeler') : z.vehicleTypes?.includes('4-Wheeler'))
-  );
-  if (available.length === 0) return null;
+export const getNearestAvailableParking = (
+  targetLocation: LocationCoordinates,
+  sourceZones?: ParkingZone[],
+  vehicleType: 'CAR' | 'BIKE' = 'CAR'
+): ParkingZone | null => {
+  const list = sourceZones && sourceZones.length > 0 ? sourceZones : MOCK_PARKING_ZONES;
+  const targetType = vehicleType === 'BIKE' ? '2-Wheeler' : '4-Wheeler';
+
+  const available = list.filter((z) => {
+    const allowed = z.vehicleTypes || (z.name && z.name.toLowerCase().includes('bike') ? ['2-Wheeler'] : ['4-Wheeler', '2-Wheeler']);
+    const isFull = z.isFull ?? ((z.occupiedSlots ?? 0) >= (z.totalSlots ?? 20));
+    return z.type === 'PARKING_GREEN' && !isFull && allowed.includes(targetType);
+  });
+
+  if (available.length === 0) {
+    // If none open for exact type, fallback to any green zone with vacancy
+    const fallback = list.filter(z => z.type === 'PARKING_GREEN' && !z.isFull);
+    if (fallback.length === 0) return list.find(z => z.type === 'PARKING_GREEN') || null;
+    return [...fallback].sort((a, b) => getDistance(targetLocation, a.coordinates) - getDistance(targetLocation, b.coordinates))[0];
+  }
 
   return [...available].sort((a, b) => getDistance(targetLocation, a.coordinates) - getDistance(targetLocation, b.coordinates))[0];
 };

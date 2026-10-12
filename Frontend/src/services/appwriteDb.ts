@@ -19,9 +19,9 @@ const databases = new Databases(client);
 const storage = new Storage(client);
 
 // In-memory cache for fast responsive UI
-let cachedZones: ParkingZone[] = [...REAL_PUDUCHERRY_ZONES];
-let cachedTickets: ViolationReport[] = [...MOCK_TICKETS];
-let cachedAdvisories: TrafficAdvisory[] = [...MOCK_ADVISORIES];
+let cachedZones: ParkingZone[] = [];
+let cachedTickets: ViolationReport[] = [];
+let cachedAdvisories: TrafficAdvisory[] = [];
 
 export const AppwriteDb = {
   client,
@@ -93,11 +93,12 @@ export const AppwriteDb = {
           hourlyRate: doc.hourlyRate,
           walkingTimeMin: doc.walkingTimeMin,
           distanceKm: doc.distanceKm,
-          vehicleTypes: doc.vehicleTypes || ['4-Wheeler', '2-Wheeler'],
+          vehicleTypes: doc.vehicleTypes || (doc.name && doc.name.toLowerCase().includes('bike') ? ['2-Wheeler'] : ['4-Wheeler', '2-Wheeler']),
           sensorType: doc.sensorType,
           sensorStatus: doc.sensorStatus,
           trafficLevel: doc.trafficLevel,
           trafficDelayMin: doc.trafficDelayMin,
+          imageUrl: doc.imageUrl || undefined,
         }));
         cachedZones = parsed;
         return parsed;
