@@ -5,12 +5,11 @@ import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { parkingService } from '@/lib/services/parkingService';
 import { trafficSignalService } from '@/lib/services/trafficSignalService';
 import { citizenReportsService } from '@/lib/services/citizenReportsService';
-import { BarChart2, Download, Search, FileText, CheckCircle2, Shield, Calendar } from 'lucide-react';
+import { BarChart2, Download, Search, FileText, CheckCircle2 } from 'lucide-react';
 
 export default function ReportsPage() {
   const { t } = useLanguage();
   const [activeCategory, setActiveCategory] = useState<'challans' | 'traffic' | 'citizen'>('challans');
-  const [searchTerm, setSearchTerm] = useState('');
 
   const challans = parkingService.getChallans();
   const trafficEvents = trafficSignalService.getEvents();
@@ -45,19 +44,19 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="h-full flex flex-col gap-3 text-white overflow-y-auto pr-1">
+    <div className="h-full flex flex-col gap-3 overflow-y-auto pr-1">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-[#132B52] gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-[var(--card-inner-border)] gap-2">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-[#1677FF]/20 border border-[#1677FF]/40 flex items-center justify-center text-[#1677FF]">
+          <div className="w-9 h-9 rounded-lg bg-[#1677FF]/20 border border-[#1677FF]/40 flex items-center justify-center text-[#1677FF] shrink-0">
             <BarChart2 size={20} />
           </div>
           <div>
-            <h1 className="text-base font-extrabold text-white tracking-wide">
+            <h1 className="text-base font-extrabold theme-title tracking-wide">
               {t.nav.reports} — Enforcement Audit & Event Log
             </h1>
-            <p className="text-xs text-[#AFC4E8]/70">
-              Downloadable audit records for parking violations, automated e-challans, and emergency corridor transitions
+            <p className="text-xs theme-sub font-medium">
+              Official audit records for parking citations, automated e-challans, and emergency corridor transitions
             </p>
           </div>
         </div>
@@ -65,7 +64,7 @@ export default function ReportsPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={handleExportCSV}
-            className="px-3.5 py-1.5 rounded-lg bg-[#00D68F] hover:bg-[#00D68F]/80 text-[#06152F] font-extrabold text-xs flex items-center gap-1.5 shadow-xs transition-colors shrink-0"
+            className="px-3.5 py-1.5 rounded-lg bg-[#00D68F] hover:bg-[#00D68F]/80 text-[#06152F] font-extrabold text-xs flex items-center gap-1.5 shadow-xs transition-colors shrink-0 cursor-pointer"
           >
             <Download size={14} />
             <span>Export CSV</span>
@@ -74,33 +73,33 @@ export default function ReportsPage() {
       </div>
 
       {/* Category Tabs */}
-      <div className="flex gap-2 border-b border-[#132B52] pb-2">
+      <div className="flex gap-2 border-b border-[var(--card-inner-border)] pb-2 flex-wrap">
         <button
           onClick={() => setActiveCategory('challans')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeCategory === 'challans'
               ? 'bg-[#F52235] text-white shadow-xs'
-              : 'bg-[#0A1B39] text-[#AFC4E8] hover:text-white'
+              : 'theme-inner-card theme-sub hover:text-[#1677FF] border border-[var(--card-inner-border)]'
           }`}
         >
           E-Challans & Violations ({challans.length})
         </button>
         <button
           onClick={() => setActiveCategory('traffic')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeCategory === 'traffic'
               ? 'bg-[#1677FF] text-white shadow-xs'
-              : 'bg-[#0A1B39] text-[#AFC4E8] hover:text-white'
+              : 'theme-inner-card theme-sub hover:text-[#1677FF] border border-[var(--card-inner-border)]'
           }`}
         >
-          Ambulance & Geofence Log ({trafficEvents.length})
+          Ambulance Corridor Log ({trafficEvents.length})
         </button>
         <button
           onClick={() => setActiveCategory('citizen')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
             activeCategory === 'citizen'
               ? 'bg-[#00D68F] text-black shadow-xs font-extrabold'
-              : 'bg-[#0A1B39] text-[#AFC4E8] hover:text-white'
+              : 'theme-inner-card theme-sub hover:text-[#1677FF] border border-[var(--card-inner-border)]'
           }`}
         >
           Citizen Incidents ({citizenReports.length})
@@ -108,30 +107,30 @@ export default function ReportsPage() {
       </div>
 
       {/* Main Table */}
-      <div className="police-card rounded-xl p-3 flex-1 overflow-x-auto">
+      <div className="police-card rounded-xl p-3 flex-1 overflow-x-auto shadow-sm">
         {activeCategory === 'challans' && (
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-[#132B52] text-[#AFC4E8]">
-                <th className="p-2">Challan ID</th>
-                <th className="p-2">Vehicle No</th>
-                <th className="p-2">Violation</th>
-                <th className="p-2">Location</th>
-                <th className="p-2">Duration</th>
-                <th className="p-2">Penalty</th>
-                <th className="p-2">Status</th>
+              <tr className="border-b border-[var(--card-inner-border)] bg-[var(--card-inner)] theme-sub">
+                <th className="p-2.5">Challan ID</th>
+                <th className="p-2.5">Vehicle No</th>
+                <th className="p-2.5">Violation</th>
+                <th className="p-2.5">Location</th>
+                <th className="p-2.5">Duration</th>
+                <th className="p-2.5">Penalty</th>
+                <th className="p-2.5">Status</th>
               </tr>
             </thead>
             <tbody>
               {challans.map((c) => (
-                <tr key={c.id} className="border-b border-[#132B52]/50 hover:bg-[#0A1B39]/50">
-                  <td className="p-2 font-mono font-bold text-white">{c.id}</td>
-                  <td className="p-2 font-mono font-bold text-[#F52235]">{c.vehicleNo}</td>
-                  <td className="p-2 text-[#AFC4E8]">{c.violationType}</td>
-                  <td className="p-2 text-[#AFC4E8]">{c.location}</td>
-                  <td className="p-2 text-[#FFB800]">{c.durationMinutes} Mins</td>
-                  <td className="p-2 font-bold text-[#00D68F]">₹{c.fineAmount}</td>
-                  <td className="p-2">
+                <tr key={c.id} className="border-b border-[var(--card-inner-border)] hover:bg-[var(--table-hover)] transition-colors">
+                  <td className="p-2.5 font-mono font-bold theme-title">{c.id}</td>
+                  <td className="p-2.5 font-mono font-bold text-[#F52235]">{c.vehicleNo}</td>
+                  <td className="p-2.5 theme-sub">{c.violationType}</td>
+                  <td className="p-2.5 theme-sub">{c.location}</td>
+                  <td className="p-2.5 text-[#FFB800] font-bold">{c.durationMinutes} Mins</td>
+                  <td className="p-2.5 font-bold text-[#00D68F]">₹{c.fineAmount}</td>
+                  <td className="p-2.5">
                     <span className="px-2 py-0.5 rounded bg-[#F52235]/20 text-[#F52235] text-[10px] font-bold">
                       {c.status}
                     </span>
@@ -145,20 +144,20 @@ export default function ReportsPage() {
         {activeCategory === 'traffic' && (
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-[#132B52] text-[#AFC4E8]">
-                <th className="p-2">Event ID</th>
-                <th className="p-2">Timestamp</th>
-                <th className="p-2">Event Type</th>
-                <th className="p-2">Description</th>
+              <tr className="border-b border-[var(--card-inner-border)] bg-[var(--card-inner)] theme-sub">
+                <th className="p-2.5">Event ID</th>
+                <th className="p-2.5">Timestamp</th>
+                <th className="p-2.5">Event Type</th>
+                <th className="p-2.5">Description</th>
               </tr>
             </thead>
             <tbody>
               {trafficEvents.map((e) => (
-                <tr key={e.id} className="border-b border-[#132B52]/50 hover:bg-[#0A1B39]/50">
-                  <td className="p-2 font-mono font-bold text-white">{e.id}</td>
-                  <td className="p-2 font-mono text-[#AFC4E8]">{e.timestamp}</td>
-                  <td className="p-2 font-bold text-[#1677FF]">{e.type}</td>
-                  <td className="p-2 text-white">{e.title}</td>
+                <tr key={e.id} className="border-b border-[var(--card-inner-border)] hover:bg-[var(--table-hover)] transition-colors">
+                  <td className="p-2.5 font-mono font-bold theme-title">{e.id}</td>
+                  <td className="p-2.5 font-mono theme-sub">{e.timestamp}</td>
+                  <td className="p-2.5 font-bold text-[#1677FF]">{e.type}</td>
+                  <td className="p-2.5 theme-title">{e.title}</td>
                 </tr>
               ))}
             </tbody>
@@ -168,24 +167,24 @@ export default function ReportsPage() {
         {activeCategory === 'citizen' && (
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="border-b border-[#132B52] text-[#AFC4E8]">
-                <th className="p-2">Report ID</th>
-                <th className="p-2">Title</th>
-                <th className="p-2">Location</th>
-                <th className="p-2">Reporter</th>
-                <th className="p-2">Time</th>
-                <th className="p-2">Status</th>
+              <tr className="border-b border-[var(--card-inner-border)] bg-[var(--card-inner)] theme-sub">
+                <th className="p-2.5">Report ID</th>
+                <th className="p-2.5">Title</th>
+                <th className="p-2.5">Location</th>
+                <th className="p-2.5">Reporter</th>
+                <th className="p-2.5">Time</th>
+                <th className="p-2.5">Status</th>
               </tr>
             </thead>
             <tbody>
               {citizenReports.map((r) => (
-                <tr key={r.id} className="border-b border-[#132B52]/50 hover:bg-[#0A1B39]/50">
-                  <td className="p-2 font-mono font-bold text-white">{r.id}</td>
-                  <td className="p-2 font-bold text-white">{r.title}</td>
-                  <td className="p-2 text-[#AFC4E8]">{r.location}</td>
-                  <td className="p-2 text-[#AFC4E8]">{r.reporterName}</td>
-                  <td className="p-2 text-[#AFC4E8]/60 font-mono">{r.reportedTime}</td>
-                  <td className="p-2">
+                <tr key={r.id} className="border-b border-[var(--card-inner-border)] hover:bg-[var(--table-hover)] transition-colors">
+                  <td className="p-2.5 font-mono font-bold theme-title">{r.id}</td>
+                  <td className="p-2.5 font-bold theme-title">{r.title}</td>
+                  <td className="p-2.5 theme-sub">{r.location}</td>
+                  <td className="p-2.5 theme-sub">{r.reporterName}</td>
+                  <td className="p-2.5 theme-subtle font-mono">{r.reportedTime}</td>
+                  <td className="p-2.5">
                     <span className="px-2 py-0.5 rounded bg-[#1677FF]/20 text-[#1677FF] text-[10px] font-bold">
                       {r.status}
                     </span>

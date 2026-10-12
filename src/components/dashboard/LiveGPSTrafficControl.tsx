@@ -3,43 +3,49 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { trafficSignalService } from '@/lib/services/trafficSignalService';
-import { TrafficSignal, AmbulanceState, GeofenceArea } from '@/lib/types/dashboard';
+import { TrafficSignal, AmbulanceState, GeofenceArea, SignalStem } from '@/lib/types/dashboard';
 import { 
   Network, 
-  CheckCircle2, 
-  AlertCircle, 
   Play, 
   Pause, 
   RotateCcw, 
   Sliders, 
-  Layers,
-  Crosshair,
-  Radio,
-  Navigation,
-  Compass,
+  Crosshair, 
   X,
+  Plus,
+  Minus,
+  Radio,
   Zap,
-  MapPin
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff,
+  Minimize2,
+  Maximize2
 } from 'lucide-react';
 
 export function LiveGPSTrafficControl() {
-  const { t } = useLanguage();
+  const { lang, t } = useLanguage();
   const [signals, setSignals] = useState<TrafficSignal[]>([]);
   const [ambulance, setAmbulance] = useState<AmbulanceState | null>(null);
   const [geofence, setGeofence] = useState<GeofenceArea | null>(null);
   const [isRunning, setIsRunning] = useState(true);
   const [showControls, setShowControls] = useState(false);
+  const [showStemInspector, setShowStemInspector] = useState(false);
+  const [hideDetails, setHideDetails] = useState(false);
+  const [isDockMinimized, setIsDockMinimized] = useState(false);
   const [mapType, setMapType] = useState<'roadmap' | 'satellite'>('roadmap');
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const ambulanceMarkerRef = useRef<any>(null);
-  const geofenceCircleRef = useRef<any>(null);
+  const activeGeofenceCircleRef = useRef<any>(null);
   const signalMarkersRef = useRef<Record<string, any>>({});
-  const routePolylineRef = useRef<any>(null);
+  const stemMarkersRef = useRef<Record<string, any>>({});
+  const stemPolylinesRef = useRef<Record<string, any>>({});
+  const traveledPolylineRef = useRef<any>(null);
   const isMapInitializedRef = useRef(false);
 
-  // Subscribe to trafficSignalService
   useEffect(() => {
     const update = () => {
       setSignals(trafficSignalService.getSignals());
@@ -53,7 +59,6 @@ export function LiveGPSTrafficControl() {
     return () => unsub();
   }, []);
 
-  // Initialize Leaflet Map with Google Maps Tiles
   useEffect(() => {
     if (typeof window === 'undefined' || !mapContainerRef.current) return;
     if (isMapInitializedRef.current) return;
@@ -63,20 +68,19 @@ export function LiveGPSTrafficControl() {
     import('leaflet').then((L) => {
       if (!mapContainerRef.current || isMapInitializedRef.current) return;
 
-      const puducherryCenter = [11.9338, 79.8335];
+      // Centered on corridor midpoint between IG Statue (11.93157, 79.80766) and Muruga Theatre (11.94162, 79.80825)
+      const puducherryCenter: [number, number] = [11.9366, 79.8080];
 
-      // Initialize map
       map = L.map(mapContainerRef.current, {
-        center: puducherryCenter as [number, number],
-        zoom: 15,
+        center: puducherryCenter,
+        zoom: 15.5,
         zoomControl: false,
         attributionControl: false
       });
 
-      // Add Zoom Control at bottom right
-      L.control.zoom({ position: 'bottomright' }).addTo(map);
+      // Zoom control in top-left to avoid ANY overlay collisions
+      L.control.zoom({ position: 'topleft' }).addTo(map);
 
-      // Add Google Maps Roadmap Tile Layer
       const googleTileUrl = mapType === 'satellite'
         ? 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'
         : 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}';
@@ -89,85 +93,167 @@ export function LiveGPSTrafficControl() {
       mapInstanceRef.current = map;
       (map as any)._googleTileLayer = tileLayer;
 
-      // Draw Emergency Route Polyline
+      // REAL ROAD POLYLINE: Lying 100% directly on 100 Feet Road / Kamaraj Salai asphalt road surface
       const routeCoords = trafficSignalService.getRouteCoordinates().map(c => [c.lat, c.lng]);
-      const polyline = L.polyline(routeCoords as [number, number][], {
+      
+      // Outer road casing glow (Swiggy / Uber style route line)
+      L.polyline(routeCoords as [number, number][], {
+        color: '#002B66',
+        weight: 10,
+        opacity: 0.8,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(map);
+
+      // Inner electric blue navigation route line lying directly on the road
+      L.polyline(routeCoords as [number, number][], {
         color: '#1677FF',
         weight: 5,
-        opacity: 0.85,
+        opacity: 0.95,
         dashArray: '8, 6',
         lineCap: 'round',
         lineJoin: 'round'
       }).addTo(map);
-      routePolylineRef.current = polyline;
 
-      // Draw Geofence Radar Circle
+      // Traveled active route line (Glowing Green trail behind ambulance like live delivery apps)
+      const traveledPolyline = L.polyline([], {
+        color: '#00D68F',
+        weight: 5,
+        opacity: 0.95,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(map);
+
+      traveledPolylineRef.current = traveledPolyline;
+
+      // Render geofence perimeter rings for all intersections
+      const initialSignals = trafficSignalService.getSignals();
+      initialSignals.forEach(sig => {
+        L.circle([sig.coords.lat, sig.coords.lng], {
+          radius: sig.geofenceRadius || 90,
+          color: '#1677FF',
+          fillColor: '#1677FF',
+          fillOpacity: 0.08,
+          weight: 1.5,
+          dashArray: '5, 5'
+        }).addTo(map);
+      });
+
+      // Active Dynamic Geofence Highlight Circle
       const gf = trafficSignalService.getGeofence();
       if (gf) {
-        const circle = L.circle([gf.center.lat, gf.center.lng], {
+        const activeCircle = L.circle([gf.center.lat, gf.center.lng], {
           radius: gf.radiusMeters,
-          color: '#F52235',
-          fillColor: '#F52235',
-          fillOpacity: 0.18,
-          weight: 2,
+          color: gf.isAmbulanceInside ? '#00D68F' : '#1677FF',
+          fillColor: gf.isAmbulanceInside ? '#00D68F' : '#1677FF',
+          fillOpacity: gf.isAmbulanceInside ? 0.28 : 0.12,
+          weight: 2.5,
           dashArray: '6, 4'
         }).addTo(map);
 
-        circle.bindTooltip(`<b>${gf.name}</b><br/>Emergency Priority Radius: ${gf.radiusMeters}m`, {
-          direction: 'top',
-          className: 'police-map-tooltip'
-        });
-
-        geofenceCircleRef.current = circle;
-
-        // Destination Hospital Pin Icon
-        const hospitalIcon = L.divIcon({
-          className: 'hospital-marker',
-          html: `
-            <div style="background: #F52235; color: white; border: 2px solid white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(245,34,53,0.6); font-weight: 900; font-size: 14px;">
-              🏥
-            </div>
-          `,
-          iconSize: [30, 30],
-          iconAnchor: [15, 15]
-        });
-        L.marker([gf.center.lat, gf.center.lng], { icon: hospitalIcon }).addTo(map);
+        activeGeofenceCircleRef.current = activeCircle;
       }
 
-      // Draw Traffic Signals Pins on Map
-      const curSignals = trafficSignalService.getSignals();
-      curSignals.forEach(sig => {
+      // Signal Markers on Map
+      initialSignals.forEach(sig => {
         const isGreen = sig.state === 'GREEN';
-        const isSelected = sig.id === gf.targetSignalId;
+        const isSelected = sig.id === gf?.targetSignalId;
+        const hasStems = Boolean(sig.stems && sig.stems.length > 0);
 
-        const signalIcon = L.divIcon({
-          className: `traffic-signal-marker-${sig.id}`,
-          html: createSignalMarkerHtml(sig, isGreen, isSelected),
-          iconSize: [42, 64],
-          iconAnchor: [21, 58]
-        });
+        if (hasStems) {
+          // Multi-Way Junction Hub (IG 4-Way or Muruga 5-Way)
+          const iconHtml = createMultiWaySignalMarkerHtml(sig, sig.isInsideGeofence ?? false, isSelected);
+          const signalIcon = L.divIcon({
+            className: `traffic-signal-marker-${sig.id}`,
+            html: iconHtml,
+            iconSize: [60, 60],
+            iconAnchor: [30, 30]
+          });
 
-        const marker = L.marker([sig.coords.lat, sig.coords.lng], { icon: signalIcon }).addTo(map);
-        marker.on('click', () => {
-          trafficSignalService.selectEmergencySignal(sig.id);
-        });
+          const marker = L.marker([sig.coords.lat, sig.coords.lng], { icon: signalIcon, zIndexOffset: 900 }).addTo(map);
+          marker.on('click', () => {
+            trafficSignalService.selectEmergencySignal(sig.id);
+          });
 
-        marker.bindTooltip(`<b>${sig.name}</b><br/>State: ${sig.state}<br/>Click to override corridor`, {
-          direction: 'top',
-          offset: [0, -45]
-        });
+          marker.bindTooltip(`<b>${sig.name}</b><br/>${sig.locationLabel}`, {
+            direction: 'top',
+            offset: [0, -32]
+          });
 
-        signalMarkersRef.current[sig.id] = marker;
+          signalMarkersRef.current[sig.id] = marker;
+
+          // Render physical stems directly on each road arm
+          if (sig.stems) {
+            sig.stems.forEach(stem => {
+              if (stem.coords) {
+                const isStemGreen = stem.state === 'GREEN';
+
+                // Glowing Branch Connection Ray from Center to Stem
+                const branchRay = L.polyline(
+                  [[sig.coords.lat, sig.coords.lng], [stem.coords.lat, stem.coords.lng]],
+                  {
+                    color: isStemGreen ? '#00D68F' : '#F52235',
+                    weight: isStemGreen ? 4.5 : 2.5,
+                    opacity: 0.85,
+                    dashArray: isStemGreen ? undefined : '5, 4'
+                  }
+                ).addTo(map);
+                stemPolylinesRef.current[stem.id] = branchRay;
+
+                // Dedicated Stem Traffic Signal Marker directly on the physical road arm
+                const stemIcon = L.divIcon({
+                  className: `traffic-stem-marker-${stem.id}`,
+                  html: createIndividualStemMarkerHtml(stem, sig.isInsideGeofence ?? false),
+                  iconSize: [44, 44],
+                  iconAnchor: [22, 22]
+                });
+
+                const stemMarker = L.marker([stem.coords.lat, stem.coords.lng], {
+                  icon: stemIcon,
+                  zIndexOffset: 850
+                }).addTo(map);
+
+                stemMarker.bindTooltip(`<b>${stem.name}</b><br/>${stem.directionLabel}<br/><b>Signal:</b> ${stem.state}`, {
+                  direction: 'top',
+                  offset: [0, -24]
+                });
+
+                stemMarkersRef.current[stem.id] = stemMarker;
+              }
+            });
+          }
+        } else {
+          // Standard Signal Pole
+          const iconHtml = createStandardSignalMarkerHtml(sig, isGreen, isSelected);
+          const signalIcon = L.divIcon({
+            className: `traffic-signal-marker-${sig.id}`,
+            html: iconHtml,
+            iconSize: [44, 66],
+            iconAnchor: [22, 60]
+          });
+
+          const marker = L.marker([sig.coords.lat, sig.coords.lng], { icon: signalIcon }).addTo(map);
+          marker.on('click', () => {
+            trafficSignalService.selectEmergencySignal(sig.id);
+          });
+
+          marker.bindTooltip(`<b>${sig.name}</b><br/>${sig.locationLabel}`, {
+            direction: 'top',
+            offset: [0, -35]
+          });
+
+          signalMarkersRef.current[sig.id] = marker;
+        }
       });
 
-      // Draw Moving Ambulance Marker
+      // Realistic Animated Ambulance Vehicle Marker
       const curAmbulance = trafficSignalService.getAmbulance();
       if (curAmbulance) {
         const ambIcon = L.divIcon({
           className: 'ambulance-map-marker',
-          html: createAmbulanceMarkerHtml(curAmbulance),
-          iconSize: [44, 44],
-          iconAnchor: [22, 22]
+          html: createRealisticAmbulanceMarkerHtml(curAmbulance),
+          iconSize: [56, 56],
+          iconAnchor: [28, 28]
         });
 
         const ambMarker = L.marker([curAmbulance.lat, curAmbulance.lng], {
@@ -179,64 +265,129 @@ export function LiveGPSTrafficControl() {
       }
 
       isMapInitializedRef.current = true;
+
+      // Ensure leaflet tiles always redraw cleanly to exact flex container size
+      const resizeObserver = new ResizeObserver(() => {
+        map.invalidateSize();
+      });
+      if (mapContainerRef.current) {
+        resizeObserver.observe(mapContainerRef.current);
+      }
+
+      (map as any)._customResizeObserver = resizeObserver;
     });
 
     return () => {
       if (map) {
+        if ((map as any)._customResizeObserver) {
+          (map as any)._customResizeObserver.disconnect();
+        }
         map.remove();
         isMapInitializedRef.current = false;
+        signalMarkersRef.current = {};
+        stemMarkersRef.current = {};
+        stemPolylinesRef.current = {};
       }
     };
   }, []);
 
-  // Update Ambulance Marker position smoothly as simulation runs
+  // Update ambulance marker position & heading smoothly on the road + dynamic traveled polyline
   useEffect(() => {
-    if (!ambulance || !ambulanceMarkerRef.current) return;
+    if (!ambulance) return;
     import('leaflet').then((L) => {
-      ambulanceMarkerRef.current.setLatLng([ambulance.lat, ambulance.lng]);
-      const newIcon = L.divIcon({
-        className: 'ambulance-map-marker',
-        html: createAmbulanceMarkerHtml(ambulance),
-        iconSize: [44, 44],
-        iconAnchor: [22, 22]
-      });
-      ambulanceMarkerRef.current.setIcon(newIcon);
+      if (ambulanceMarkerRef.current) {
+        ambulanceMarkerRef.current.setLatLng([ambulance.lat, ambulance.lng]);
+        const newIcon = L.divIcon({
+          className: 'ambulance-map-marker',
+          html: createRealisticAmbulanceMarkerHtml(ambulance),
+          iconSize: [56, 56],
+          iconAnchor: [28, 28]
+        });
+        ambulanceMarkerRef.current.setIcon(newIcon);
+      }
+
+      if (traveledPolylineRef.current) {
+        const route = trafficSignalService.getRouteCoordinates();
+        const targetLen = Math.max(1, Math.round((ambulance.routeProgress / 100) * route.length));
+        const passed = route.slice(0, targetLen).map(c => [c.lat, c.lng]);
+        passed.push([ambulance.lat, ambulance.lng]);
+        traveledPolylineRef.current.setLatLngs(passed);
+      }
     });
   }, [ambulance]);
 
-  // Update Traffic Signal markers & Geofence on simulation state changes
+  // Update signal markers, stems, branch rays, and active geofence circle
   useEffect(() => {
     if (!geofence) return;
     import('leaflet').then((L) => {
-      // Update Traffic Signals markers
       signals.forEach(sig => {
         const marker = signalMarkersRef.current[sig.id];
+        const isSelected = sig.id === geofence.targetSignalId;
+        const hasStems = Boolean(sig.stems && sig.stems.length > 0);
+
         if (marker) {
-          const isGreen = sig.state === 'GREEN';
-          const isSelected = sig.id === geofence.targetSignalId;
-          const newIcon = L.divIcon({
-            className: `traffic-signal-marker-${sig.id}`,
-            html: createSignalMarkerHtml(sig, isGreen, isSelected),
-            iconSize: [42, 64],
-            iconAnchor: [21, 58]
-          });
-          marker.setIcon(newIcon);
+          if (hasStems) {
+            const iconHtml = createMultiWaySignalMarkerHtml(sig, sig.isInsideGeofence ?? false, isSelected);
+            const newIcon = L.divIcon({
+              className: `traffic-signal-marker-${sig.id}`,
+              html: iconHtml,
+              iconSize: [60, 60],
+              iconAnchor: [30, 30]
+            });
+            marker.setIcon(newIcon);
+
+            // Update all individual stem markers & branch rays
+            if (sig.stems) {
+              sig.stems.forEach(stem => {
+                const sMarker = stemMarkersRef.current[stem.id];
+                if (sMarker) {
+                  const sIcon = L.divIcon({
+                    className: `traffic-stem-marker-${stem.id}`,
+                    html: createIndividualStemMarkerHtml(stem, sig.isInsideGeofence ?? false),
+                    iconSize: [44, 44],
+                    iconAnchor: [22, 22]
+                  });
+                  sMarker.setIcon(sIcon);
+                }
+
+                const sPolyline = stemPolylinesRef.current[stem.id];
+                if (sPolyline) {
+                  const isStemGreen = stem.state === 'GREEN';
+                  sPolyline.setStyle({
+                    color: isStemGreen ? '#00D68F' : '#F52235',
+                    weight: isStemGreen ? 4.5 : 2.5,
+                    opacity: 0.85,
+                    dashArray: isStemGreen ? undefined : '5, 4'
+                  });
+                }
+              });
+            }
+          } else {
+            const isGreen = sig.state === 'GREEN';
+            const iconHtml = createStandardSignalMarkerHtml(sig, isGreen, isSelected);
+            const newIcon = L.divIcon({
+              className: `traffic-signal-marker-${sig.id}`,
+              html: iconHtml,
+              iconSize: [44, 66],
+              iconAnchor: [22, 60]
+            });
+            marker.setIcon(newIcon);
+          }
         }
       });
 
-      // Update Geofence Circle appearance
-      if (geofenceCircleRef.current) {
-        geofenceCircleRef.current.setLatLng([geofence.center.lat, geofence.center.lng]);
-        geofenceCircleRef.current.setStyle({
-          color: geofence.isAmbulanceInside ? '#00D68F' : '#F52235',
-          fillColor: geofence.isAmbulanceInside ? '#00D68F' : '#F52235',
-          fillOpacity: geofence.isAmbulanceInside ? 0.25 : 0.15
+      if (activeGeofenceCircleRef.current) {
+        activeGeofenceCircleRef.current.setLatLng([geofence.center.lat, geofence.center.lng]);
+        activeGeofenceCircleRef.current.setRadius(geofence.radiusMeters);
+        activeGeofenceCircleRef.current.setStyle({
+          color: geofence.isAmbulanceInside ? '#00D68F' : '#1677FF',
+          fillColor: geofence.isAmbulanceInside ? '#00D68F' : '#1677FF',
+          fillOpacity: geofence.isAmbulanceInside ? 0.30 : 0.12
         });
       }
     });
   }, [signals, geofence]);
 
-  // Toggle Map Type (Roadmap / Satellite)
   const handleToggleMapType = (nextType: 'roadmap' | 'satellite') => {
     setMapType(nextType);
     if (mapInstanceRef.current && (mapInstanceRef.current as any)._googleTileLayer) {
@@ -247,38 +398,70 @@ export function LiveGPSTrafficControl() {
     }
   };
 
-  // Recenter on Ambulance
   const handleRecenter = () => {
     if (mapInstanceRef.current && ambulance) {
       mapInstanceRef.current.panTo([ambulance.lat, ambulance.lng]);
     }
   };
 
-  return (
-    <div className="police-card rounded-xl p-3 flex flex-col justify-between h-full relative border-t-4 border-t-[#1677FF] shadow-lg select-none">
+  const handleZoom = (delta: number) => {
+    if (mapInstanceRef.current) {
+      if (delta > 0) mapInstanceRef.current.zoomIn();
+      else mapInstanceRef.current.zoomOut();
+    }
+  };
 
-      {/* Card Header */}
-      <div className="flex items-center justify-between pb-2 border-b border-[var(--card-inner-border)] shrink-0">
-        <div className="flex items-center gap-2.5">
+  const getSignalLocalizedName = (sig: TrafficSignal) => {
+    if (sig.id === 'SIG-IG') return lang === 'ta' ? 'இந்திரா காந்தி சிலை (4-வழி)' : 'Indira Gandhi Statue (4-Way)';
+    if (sig.id === 'SIG-MURUGA') return lang === 'ta' ? 'முருகா தியேட்டர் (5-வழி)' : 'Muruga Theatre (5-Way)';
+    return sig.name;
+  };
+
+  const igSignal = signals.find(s => s.id === 'SIG-IG');
+  const murugaSignal = signals.find(s => s.id === 'SIG-MURUGA');
+
+  return (
+    <div className="police-card rounded-xl p-2.5 flex flex-col h-full min-h-0 relative border-t-4 border-t-[#1677FF] shadow-lg select-none overflow-hidden">
+      {/* Top Header Bar */}
+      <div className="flex items-center justify-between pb-2 border-b border-[var(--card-inner-border)] shrink-0 gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-8 h-8 rounded-lg bg-[#1677FF]/20 border border-[#1677FF]/40 flex items-center justify-center text-[#1677FF] shrink-0 shadow-sm">
             <Network size={18} />
           </div>
-          <div>
-            <h2 className="text-sm font-extrabold theme-title tracking-wide leading-tight">
-              {t.traffic.title}
+          <div className="min-w-0">
+            <h2 className="text-sm font-extrabold theme-title tracking-wide leading-tight truncate">
+              {lang === 'ta' ? 'நேரடி ஜிபிஎஸ் & சிக்னல் கட்டுப்பாடு' : 'Live GPS & Traffic Signal Control'}
             </h2>
-            <p className="text-[11px] theme-sub leading-tight font-medium mt-0.5">
-              Puducherry Command Sector Emergency Corridor
+            <p className="text-[11px] theme-sub leading-tight font-medium mt-0.5 truncate">
+              {lang === 'ta' ? 'இந்திரா காந்தி சிலை (4-வழி) -> 100 அடி சாலை -> முருகா தியேட்டர் (5-வழி)' : 'Indira Gandhi Statue (4-Way) -> 100 Feet Rd -> Muruga Theatre (5-Way)'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
-          {/* Map Layer Mode Switcher (Google Roadmap / Satellite) */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* USER REQUESTED: Button to Hide/Show Details for Clear View */}
+          <button
+            onClick={() => setHideDetails(!hideDetails)}
+            className={`px-2 py-1 rounded-lg text-[10.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              hideDetails
+                ? 'bg-[#1677FF] text-white shadow-md'
+                : 'theme-inner-card theme-sub hover:text-[#1677FF] border border-[var(--card-inner-border)]'
+            }`}
+            title={hideDetails ? 'Show All Controls (Full HUD)' : 'Clean Map Mode (Hide Overlays)'}
+          >
+            {hideDetails ? <Eye size={13} className="text-white" /> : <EyeOff size={13} />}
+            <span className="hidden sm:inline">
+              {hideDetails 
+                ? (lang === 'ta' ? 'விவரங்களை காட்டு' : 'Show Details') 
+                : (lang === 'ta' ? 'விவரங்களை மறை' : 'Hide Details')}
+            </span>
+          </button>
+
+          {/* Map Type Toggle */}
           <div className="flex items-center p-0.5 rounded-lg theme-inner-card border border-[var(--card-inner-border)]">
             <button
               onClick={() => handleToggleMapType('roadmap')}
-              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
                 mapType === 'roadmap' ? 'bg-[#1677FF] text-white shadow-xs' : 'theme-sub hover:text-[#1677FF]'
               }`}
             >
@@ -286,7 +469,7 @@ export function LiveGPSTrafficControl() {
             </button>
             <button
               onClick={() => handleToggleMapType('satellite')}
-              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
+              className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all cursor-pointer ${
                 mapType === 'satellite' ? 'bg-[#1677FF] text-white shadow-xs' : 'theme-sub hover:text-[#1677FF]'
               }`}
             >
@@ -294,181 +477,384 @@ export function LiveGPSTrafficControl() {
             </button>
           </div>
 
-          {/* Simulation Controls Toggle */}
+          {/* Zoom Buttons */}
+          <div className="hidden sm:flex items-center p-0.5 rounded-lg theme-inner-card border border-[var(--card-inner-border)]">
+            <button
+              onClick={() => handleZoom(1)}
+              className="p-1 rounded theme-sub hover:text-[#1677FF] hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
+              title="Zoom In"
+            >
+              <Plus size={13} />
+            </button>
+            <button
+              onClick={() => handleZoom(-1)}
+              className="p-1 rounded theme-sub hover:text-[#1677FF] hover:bg-black/10 dark:hover:bg-white/10 transition-colors cursor-pointer"
+              title="Zoom Out"
+            >
+              <Minus size={13} />
+            </button>
+          </div>
+
+          {/* Simulation Drawer Toggle */}
           <button
             onClick={() => setShowControls(!showControls)}
-            className="p-1.5 rounded theme-inner-card hover:bg-white/10 theme-sub hover:text-[#1677FF] border border-[var(--card-inner-border)] transition-colors"
-            title="GPS & Signal Controls"
+            className="p-1.5 rounded theme-inner-card hover:bg-black/10 dark:hover:bg-white/10 theme-sub hover:text-[#1677FF] border border-[var(--card-inner-border)] transition-colors cursor-pointer shrink-0"
+            title="GPS Emergency Corridor Controls"
           >
             <Sliders size={14} />
           </button>
 
-          {/* Live Status Pill */}
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#00D68F]/15 border border-[#00D68F]/40 text-[#00D68F] text-[10.5px] font-bold">
+          {/* Live Badge */}
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#00D68F]/15 border border-[#00D68F]/40 text-[#00D68F] text-[10.5px] font-bold shrink-0">
             <span className="w-2 h-2 rounded-full bg-[#00D68F] animate-pulse" />
             <span>{t.common.live}</span>
           </div>
         </div>
       </div>
 
-      {/* Main Integrated Google Map Space (Full Height Center Rectangle) */}
-      <div className="relative my-2 rounded-xl overflow-hidden border border-[#132B52] bg-[#030D1E] flex-1 min-h-[380px] lg:min-h-0 w-full select-none shadow-inner">
-        {/* Leaflet Google Map Container */}
-        <div ref={mapContainerRef} className="w-full h-full min-h-[360px] z-0" />
+      {/* Main Map Space */}
+      <div className="relative my-1.5 rounded-xl overflow-hidden border border-[#132B52] bg-[#030D1E] flex-1 min-h-0 w-full select-none shadow-inner">
+        <div ref={mapContainerRef} className="w-full h-full z-0" />
 
-        {/* FLOATING HUD OVERLAY 1: Top Emergency Alert Banner */}
-        <div className="absolute top-2.5 left-2.5 right-2.5 z-20 pointer-events-none">
-          <div className="pointer-events-auto bg-[#030D1E]/90 backdrop-blur-md border-2 border-[#1677FF] text-white rounded-xl px-3 py-2 shadow-2xl flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-base shrink-0 animate-bounce">🚨</span>
-              <p className="text-[11px] font-bold truncate leading-tight">
-                {geofence?.isAmbulanceInside ? (
-                  <span>
-                    <strong className="text-[#00D68F] font-black uppercase">EMERGENCY CORRIDOR ACTIVE:</strong> Ambulance entered geofence. Signal at <strong className="text-white underline">{signals.find(s => s.id === geofence.targetSignalId)?.name || 'Bharathi Park'}</strong> is <span className="text-[#00D68F] font-extrabold">GREEN</span>. Others <span className="text-[#F52235] font-extrabold">RED</span>.
-                  </span>
-                ) : (
-                  <span>
-                    🛡️ <strong className="text-[#38BDF8]">PATROL CORRIDOR:</strong> Ambulance en route to Bharathi Park Health Center.
-                  </span>
-                )}
-              </p>
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={handleRecenter}
-                className="p-1 rounded bg-[#1677FF]/30 hover:bg-[#1677FF] text-white border border-[#1677FF]/50 transition-colors"
-                title="Recenter Map on Ambulance"
-              >
-                <Crosshair size={12} />
-              </button>
-              <button
-                onClick={() => trafficSignalService.togglePlayPause()}
-                className="px-2 py-0.5 rounded bg-[#1677FF] hover:bg-[#0056cc] text-white font-bold text-[10px] flex items-center gap-1 transition-colors shadow-xs"
-              >
-                {isRunning ? <Pause size={10} /> : <Play size={10} />}
-                <span>{isRunning ? 'Pause' : 'Play'}</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* FLOATING HUD OVERLAY 2: Bottom-Left Ambulance Telemetry Card */}
-        {ambulance && (
-          <div className="absolute bottom-2.5 left-2.5 z-20 pointer-events-auto max-w-[260px] w-full">
-            <div className="bg-[#030D1E]/95 backdrop-blur-md border border-[#1677FF]/60 text-white rounded-xl p-2.5 shadow-2xl">
-              <div className="flex items-center justify-between pb-1.5 border-b border-white/10 mb-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-sm">🚑</span>
-                  <div>
-                    <div className="font-extrabold text-[11px] leading-tight text-white">{ambulance.name}</div>
-                    <div className="text-[9px] text-[#AFC4E8] font-mono">ID: {ambulance.id}</div>
-                  </div>
+        {/* TOP HUD BANNER: Emergency Preemption Alert (Smoothly collapses or shrinks when hideDetails is active) */}
+        {!hideDetails && (
+          <div className="absolute top-2.5 left-2.5 right-2.5 z-20 pointer-events-none transition-all duration-300">
+            <div className="pointer-events-auto bg-[#030D1E]/95 [data-theme='white']:bg-white/95 backdrop-blur-md border border-[#1677FF]/80 [data-theme='white']:border-slate-300 text-white [data-theme='white']:text-slate-900 rounded-xl px-3 py-2 shadow-2xl flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-base shrink-0 animate-bounce">🚨</span>
+                <div className="text-[11px] leading-tight min-w-0 truncate">
+                  {geofence?.isAmbulanceInside ? (
+                    <span className="truncate">
+                      <strong className="text-[#00D68F] font-black uppercase tracking-wide">
+                        {lang === 'ta' ? 'அவசரகால பாதை இயங்குகிறது:' : 'EMERGENCY CORRIDOR ACTIVE:'}
+                      </strong>{' '}
+                      {lang === 'ta' ? 'ஆம்புலன்ஸ் எல்லையை தொட்டது' : 'Ambulance inside geofence at'}{' '}
+                      <strong className="text-white [data-theme='white']:text-black underline font-extrabold">
+                        {geofence.currentSignalName || 'Traffic Signal'}
+                      </strong>
+                      . <span className="text-[#00D68F] font-black">
+                        {geofence.targetSignalId === 'SIG-IG' 
+                          ? (lang === 'ta' ? 'கிளை 3 வடக்கு பாதை பச்சை (மற்ற 3 திசைகள் சிவப்பு)' : 'Stem 3 North (100Ft Rd) is GREEN (Other 3 Stems RED)')
+                          : (lang === 'ta' ? 'தெற்கு பாலம் பாதை பச்சை (மற்ற 4 திசைகள் சிவப்பு)' : 'Stem 4 South Approach is GREEN (Other 4 Stems RED)')}
+                      </span>.
+                    </span>
+                  ) : (
+                    <span className="truncate theme-title font-medium">
+                      🛡️ <strong className="text-[#38BDF8] font-bold">{lang === 'ta' ? 'கண்காணிப்பு பாதை:' : 'PATROL CORRIDOR:'}</strong>{' '}
+                      {lang === 'ta' ? '100 அடி சாலை (SH32)-ல் பயணிக்கிறது' : 'En route along 100 Feet Road (SH32)'} • {lang === 'ta' ? 'அடுத்த சிக்னல்:' : 'Approaching'}{' '}
+                      <span className="font-bold underline">{geofence?.currentSignalName || 'Traffic Signal'}</span>{' '}
+                      ({geofence?.distanceToAmbulance || 0}m)
+                    </span>
+                  )}
                 </div>
-                <span className="px-2 py-0.5 rounded bg-[#F52235] text-white font-black text-[10px] shadow-sm animate-pulse">
-                  {ambulance.speed} km/h
-                </span>
               </div>
 
-              <div className="space-y-1 text-[9.5px]">
-                <div className="flex justify-between text-white/80 font-mono">
-                  <span>GPS:</span>
-                  <span className="text-white font-bold">{ambulance.lat}° N, {ambulance.lng}° E</span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={handleRecenter}
+                  className="p-1 rounded bg-[#1677FF]/30 hover:bg-[#1677FF] text-[#1677FF] hover:text-white border border-[#1677FF]/50 transition-colors cursor-pointer"
+                  title="Recenter Map on Ambulance"
+                >
+                  <Crosshair size={12} />
+                </button>
+                <button
+                  onClick={() => trafficSignalService.togglePlayPause()}
+                  className="px-2.5 py-1 rounded bg-[#1677FF] hover:bg-[#0056cc] text-white font-bold text-[10px] flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
+                >
+                  {isRunning ? <Pause size={10} /> : <Play size={10} />}
+                  <span>{isRunning ? 'Pause' : 'Play'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* FLOATING ACTION PILL: Appears when Details are hidden so user can restore HUD anytime */}
+        {hideDetails && (
+          <div className="absolute bottom-3 right-3 z-30 pointer-events-auto">
+            <button
+              onClick={() => setHideDetails(false)}
+              className="px-3 py-1.5 rounded-xl bg-[#030D1E]/95 [data-theme='white']:bg-white/95 backdrop-blur-md border border-[#1677FF] text-white [data-theme='white']:text-slate-900 text-xs font-extrabold shadow-2xl flex items-center gap-1.5 hover:scale-105 transition-all cursor-pointer"
+            >
+              <Eye size={14} className="text-[#1677FF]" />
+              <span>{lang === 'ta' ? 'கட்டுப்பாடுகளை காட்டு' : 'Show Controls & HUD'}</span>
+            </button>
+          </div>
+        )}
+
+        {/* UNIFIED FULL-WIDTH COMMAND DOCK: Can be hidden or minimized for clear map inspection */}
+        {!hideDetails && (
+          <div className="absolute bottom-2.5 left-2.5 right-2.5 z-20 pointer-events-none flex flex-col gap-1.5 transition-all duration-300">
+
+            {/* DOCK ROW 1: Real-time Ambulance Telemetry Ribbon */}
+            {ambulance && (
+              <div className="pointer-events-auto bg-[#030D1E]/95 [data-theme='white']:bg-white/95 backdrop-blur-md border border-[#1677FF]/60 [data-theme='white']:border-slate-300 text-white [data-theme='white']:text-slate-900 rounded-xl px-3 py-1.5 shadow-xl flex items-center justify-between gap-2 overflow-hidden relative">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="relative flex items-center justify-center shrink-0">
+                    <span className="text-base">🚑</span>
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#EF4444] animate-ping" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-black text-[11px] theme-title leading-tight truncate">
+                      {ambulance.name} <span className="text-[#38BDF8] font-mono text-[9.5px]">({ambulance.id})</span>
+                    </div>
+                    <div className="text-[9px] theme-sub font-mono flex items-center gap-2 mt-0.5">
+                      <span>GPS: {ambulance.lat.toFixed(4)}°N, {ambulance.lng.toFixed(4)}°E</span>
+                      <span className="hidden sm:inline">• 100 Feet Road (SH32) • Heading: {ambulance.heading}°</span>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex justify-between items-center text-white/80">
-                  <span>Corridor:</span>
-                  <span className="text-[#00D68F] font-black uppercase">{ambulance.status}</span>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="px-2 py-0.5 rounded bg-[#F52235] text-white font-black text-[10px] shadow-sm animate-pulse">
+                    {ambulance.speed} km/h
+                  </span>
+
+                  <span className={`font-black text-[9px] uppercase px-2 py-0.5 rounded ${
+                    geofence?.isAmbulanceInside
+                      ? 'bg-[#00D68F]/20 text-[#00D68F] border border-[#00D68F]/50 animate-pulse'
+                      : 'bg-[#1677FF]/20 text-[#38BDF8] border border-[#1677FF]/50'
+                  }`}>
+                    {geofence?.isAmbulanceInside ? '⚡ GEOFENCE PREEMPTION' : '🛡️ EN ROUTE'}
+                  </span>
                 </div>
-                {/* Route progress bar */}
-                <div className="w-full bg-white/10 h-1.5 rounded-full overflow-hidden mt-1">
+
+                {/* Bottom route progress indicator line */}
+                <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/40 dark:bg-white/10">
                   <div 
                     className="bg-gradient-to-r from-[#1677FF] to-[#00D68F] h-full transition-all duration-500"
                     style={{ width: `${ambulance.routeProgress}%` }}
                   />
                 </div>
               </div>
+            )}
+
+            {/* DOCK ROW 2: Responsive Signal Controller Matrix (Collapsible) */}
+            <div className="pointer-events-auto bg-[#030D1E]/95 [data-theme='white']:bg-white/95 backdrop-blur-md border border-[#1677FF]/60 [data-theme='white']:border-slate-300 rounded-xl p-2 shadow-2xl transition-all">
+              <div className="flex items-center justify-between pb-1 mb-1.5 border-b border-black/10 dark:border-white/10 px-1">
+                <div className="text-[10px] font-black tracking-wider text-[#AFC4E8] [data-theme='white']:text-slate-600 uppercase flex items-center gap-1.5">
+                  <Radio size={12} className="text-[#1677FF]" />
+                  <span>Puducherry Traffic Intersections</span>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowStemInspector(!showStemInspector)}
+                    className="text-[9px] font-bold text-[#1677FF] hover:underline flex items-center gap-0.5 cursor-pointer"
+                  >
+                    <span>{showStemInspector ? 'Hide Stem Details' : 'Show Multi-Stem Details'}</span>
+                    {showStemInspector ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                  </button>
+
+                  <button
+                    onClick={() => setIsDockMinimized(!isDockMinimized)}
+                    className="p-1 rounded theme-inner-card hover:text-[#1677FF] text-[#AFC4E8] [data-theme='white']:text-slate-600 transition-colors cursor-pointer"
+                    title={isDockMinimized ? 'Expand Signal Matrix' : 'Minimize Dock'}
+                  >
+                    {isDockMinimized ? <Maximize2 size={11} /> : <Minimize2 size={11} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* 2-Column Responsive Buttons (No text squeezed, comfortable width) */}
+              {!isDockMinimized && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {signals.map((sig) => {
+                    const isSelected = sig.id === geofence?.targetSignalId;
+                    const isInside = Boolean(sig.isInsideGeofence);
+                    const isGreen = sig.state === 'GREEN';
+                    const localizedName = getSignalLocalizedName(sig);
+                    const isIG = sig.id === 'SIG-IG';
+                    const isMuruga = sig.id === 'SIG-MURUGA';
+
+                    return (
+                      <button
+                        key={sig.id}
+                        onClick={() => trafficSignalService.selectEmergencySignal(sig.id)}
+                        className={`p-2 rounded-lg border text-left transition-all cursor-pointer flex items-center gap-2.5 ${
+                          isInside
+                            ? 'bg-[#00D68F]/20 [data-theme="white"]:bg-emerald-50 border-[#00D68F] shadow-[0_0_12px_rgba(0,214,143,0.35)]'
+                            : isSelected
+                            ? 'bg-[#0E2A5A] [data-theme="white"]:bg-blue-50 border-[#1677FF] shadow-[0_0_8px_rgba(22,119,255,0.3)]'
+                            : 'bg-black/50 [data-theme="white"]:bg-slate-100 border-black/10 dark:border-white/15 hover:border-[#1677FF]'
+                        }`}
+                      >
+                        <span 
+                          className={`w-3.5 h-3.5 rounded-full shrink-0 transition-all ${
+                            isGreen ? 'bg-[#00D68F] shadow-[0_0_10px_#00D68F]' : 'bg-[#F52235] shadow-[0_0_10px_#F52235]'
+                          }`}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[11px] font-extrabold theme-title truncate leading-tight">
+                              {localizedName}
+                            </span>
+                            <span className={`text-[8.5px] font-black uppercase px-1.5 py-0.2 rounded shrink-0 ${
+                              isGreen ? 'bg-[#00D68F]/20 text-[#00D68F]' : 'bg-[#F52235]/20 text-[#F52235]'
+                            }`}>
+                              {isInside 
+                                ? (isIG ? 'STEM 3 GREEN' : isMuruga ? 'STEM 4 GREEN' : 'PREEMPT GREEN') 
+                                : sig.state}
+                            </span>
+                          </div>
+                          
+                          <div className="flex items-center justify-between text-[9px] font-mono mt-0.5">
+                            <span className="theme-sub truncate max-w-[140px]">
+                              {sig.direction}
+                            </span>
+                            <span className="theme-title font-bold shrink-0">
+                              {isInside ? (
+                                <span className="text-[#00D68F] font-black animate-pulse">🎯 IN GEOFENCE</span>
+                              ) : (
+                                `${sig.distanceToAmbulance || 0}m`
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* EXPANDABLE: Multi-Stem Traffic Light Monitors (Both IG 4-Way and Muruga 5-Way) */}
+              {!isDockMinimized && showStemInspector && (
+                <div className="mt-2 pt-2 border-t border-black/10 dark:border-white/10 space-y-2">
+                  {/* Indira Gandhi Statue 4-Stem Monitor */}
+                  {igSignal && igSignal.stems && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1 text-[9.5px]">
+                        <span className="font-extrabold text-[#AFC4E8] [data-theme='white']:text-slate-700 flex items-center gap-1">
+                          <Zap size={11} className={igSignal.isInsideGeofence ? 'text-[#00D68F]' : 'text-[#38BDF8]'} />
+                          {lang === 'ta' ? 'இந்திரா காந்தி சிலை: 4-திசை சிக்னல் நேரலை நிலை' : 'Indira Gandhi Statue: 4-Way Stem Matrix (100Ft Rd)'}
+                        </span>
+                        <span className="font-mono text-[8.5px] text-[#00D68F] font-bold">
+                          {igSignal.isInsideGeofence 
+                            ? '⚡ STEM 3 (NORTH) GREEN • 3 STEMS RED' 
+                            : '🔄 4-PHASE SEQUENTIAL ROTATION'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-[8.5px]">
+                        {igSignal.stems.map((stem) => {
+                          const isStemGreen = stem.state === 'GREEN';
+                          return (
+                            <div
+                              key={stem.id}
+                              className={`p-1 rounded border flex items-center gap-1.5 ${
+                                isStemGreen
+                                  ? 'bg-[#00D68F]/20 border-[#00D68F] text-[#00D68F] font-black shadow-xs'
+                                  : 'bg-black/40 [data-theme="white"]:bg-slate-200 border-black/10 dark:border-white/10 theme-sub font-semibold'
+                              }`}
+                            >
+                              <span 
+                                className={`w-2 h-2 rounded-full shrink-0 ${
+                                  isStemGreen ? 'bg-[#00D68F] shadow-[0_0_6px_#00D68F]' : 'bg-[#F52235]'
+                                }`}
+                              />
+                              <div className="min-w-0 truncate">
+                                <div className="truncate font-bold leading-tight">{stem.name}</div>
+                                <div className="text-[7.5px] uppercase font-mono">{stem.state}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Muruga Theatre 5-Stem Monitor */}
+                  {murugaSignal && murugaSignal.stems && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1 text-[9.5px]">
+                        <span className="font-extrabold text-[#AFC4E8] [data-theme='white']:text-slate-700 flex items-center gap-1">
+                          <Zap size={11} className={murugaSignal.isInsideGeofence ? 'text-[#00D68F]' : 'text-[#38BDF8]'} />
+                          {lang === 'ta' ? 'முருகா தியேட்டர்: 5-திசை சிக்னல் நேரலை நிலை' : 'Muruga Theatre: 5-Direction Stem Status Matrix'}
+                        </span>
+                        <span className="font-mono text-[8.5px] text-[#00D68F] font-bold">
+                          {murugaSignal.isInsideGeofence 
+                            ? '⚡ STEM 4 (SOUTH 100FT) GREEN • 4 STEMS RED' 
+                            : '🔄 5-PHASE SEQUENTIAL ROTATION'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-1 text-[8.5px]">
+                        {murugaSignal.stems.map((stem) => {
+                          const isStemGreen = stem.state === 'GREEN';
+                          return (
+                            <div
+                              key={stem.id}
+                              className={`p-1 rounded border flex items-center gap-1.5 ${
+                                isStemGreen
+                                  ? 'bg-[#00D68F]/20 border-[#00D68F] text-[#00D68F] font-black shadow-xs'
+                                  : 'bg-black/40 [data-theme="white"]:bg-slate-200 border-black/10 dark:border-white/10 theme-sub font-semibold'
+                              }`}
+                            >
+                              <span 
+                                className={`w-2 h-2 rounded-full shrink-0 ${
+                                  isStemGreen ? 'bg-[#00D68F] shadow-[0_0_6px_#00D68F]' : 'bg-[#F52235]'
+                                }`}
+                              />
+                              <div className="min-w-0 truncate">
+                                <div className="truncate font-bold leading-tight">{stem.name}</div>
+                                <div className="text-[7.5px] uppercase font-mono">{stem.state}</div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
             </div>
           </div>
         )}
-
-        {/* FLOATING HUD OVERLAY 3: Bottom-Right Traffic Signals Strip */}
-        <div className="absolute bottom-2.5 right-2.5 z-20 pointer-events-auto">
-          <div className="bg-[#030D1E]/95 backdrop-blur-md border border-[#1677FF]/60 rounded-xl p-2 shadow-2xl flex items-center gap-2">
-            <div className="text-[9.5px] font-black text-[#AFC4E8] uppercase tracking-wider pl-1 hidden sm:block">
-              Signals:
-            </div>
-            <div className="flex items-center gap-1.5">
-              {signals.map((sig) => {
-                const isSelected = sig.id === geofence?.targetSignalId;
-                const isGreen = sig.state === 'GREEN';
-
-                return (
-                  <button
-                    key={sig.id}
-                    onClick={() => trafficSignalService.selectEmergencySignal(sig.id)}
-                    className={`px-2 py-1 rounded-lg border text-center transition-all cursor-pointer flex items-center gap-1.5 ${
-                      isSelected
-                        ? 'bg-[#0E2A5A] border-[#00D68F] shadow-[0_0_10px_rgba(0,214,143,0.3)]'
-                        : 'bg-black/60 border-white/15 hover:border-[#1677FF]'
-                    }`}
-                    title={`Click to set emergency green for ${sig.name}`}
-                  >
-                    {/* Glowing LED light dot */}
-                    <span 
-                      className={`w-2.5 h-2.5 rounded-full transition-all ${
-                        isGreen ? 'bg-[#00D68F] shadow-[0_0_8px_#00D68F]' : 'bg-[#F52235] shadow-[0_0_8px_#F52235]'
-                      }`}
-                    />
-                    <div className="text-left">
-                      <div className="text-[9.5px] font-extrabold text-white truncate max-w-[65px]">
-                        {sig.name}
-                      </div>
-                      <div className={`text-[7.5px] font-black uppercase ${isGreen ? 'text-[#00D68F]' : 'text-[#F52235]'}`}>
-                        {sig.state}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
       </div>
 
-      {/* Floating Simulation Testing Controls Modal / Drawer */}
+      {/* Floating Simulation Controls Drawer */}
       {showControls && (
-        <div className="absolute top-12 right-3 z-30 w-72 bg-[#06152F] border border-[#1677FF]/50 rounded-xl p-3 shadow-2xl space-y-2 text-white">
-          <div className="flex items-center justify-between pb-1.5 border-b border-[#132B52]">
-            <span className="text-xs font-bold text-white flex items-center gap-1.5">
-              <Sliders size={13} className="text-[#1677FF]" /> GPS Corridor Simulation
+        <div className="absolute top-12 right-3 z-30 w-84 bg-[#06152F] [data-theme='white']:bg-white border-2 border-[#1677FF] rounded-xl p-3.5 shadow-2xl space-y-2.5 text-white [data-theme='white']:text-slate-900">
+          <div className="flex items-center justify-between pb-1.5 border-b border-[#132B52] [data-theme='white']:border-slate-200">
+            <span className="text-xs font-bold flex items-center gap-1.5 text-white [data-theme='white']:text-slate-900">
+              <Sliders size={13} className="text-[#1677FF]" /> Puducherry Geofence Simulation
             </span>
-            <button onClick={() => setShowControls(false)} className="text-[#AFC4E8] hover:text-white">
+            <button onClick={() => setShowControls(false)} className="text-[#AFC4E8] [data-theme='white']:text-slate-500 hover:opacity-80 cursor-pointer">
               <X size={14} />
             </button>
           </div>
 
           <div className="space-y-1.5 text-xs">
             <button
-              onClick={() => trafficSignalService.triggerEnterGeofence()}
-              className="w-full text-left px-2.5 py-1.5 rounded bg-[#0A1B39] hover:bg-[#132B52] font-semibold text-white flex items-center justify-between border border-[#132B52]"
+              onClick={() => trafficSignalService.triggerEnterGeofence('SIG-IG')}
+              className="w-full text-left px-2.5 py-1.5 rounded bg-[#0A1B39] [data-theme='white']:bg-slate-100 hover:bg-[#132B52] [data-theme='white']:hover:bg-slate-200 font-semibold text-white [data-theme='white']:text-slate-900 flex items-center justify-between border border-[#132B52] [data-theme='white']:border-slate-300 cursor-pointer"
             >
-              <span>{t.traffic.enterGeofence}</span>
+              <span>Test Indira Gandhi Statue (4-Way Green)</span>
+              <span className="text-[#00D68F] font-bold text-[10px]">FORCE GREEN</span>
+            </button>
+
+            <button
+              onClick={() => trafficSignalService.triggerEnterGeofence('SIG-MURUGA')}
+              className="w-full text-left px-2.5 py-1.5 rounded bg-[#0A1B39] [data-theme='white']:bg-slate-100 hover:bg-[#132B52] [data-theme='white']:hover:bg-slate-200 font-semibold text-white [data-theme='white']:text-slate-900 flex items-center justify-between border border-[#132B52] [data-theme='white']:border-slate-300 cursor-pointer"
+            >
+              <span>Test Muruga Theatre (5-Way Green)</span>
               <span className="text-[#00D68F] font-bold text-[10px]">FORCE GREEN</span>
             </button>
 
             <button
               onClick={() => trafficSignalService.triggerExitGeofence()}
-              className="w-full text-left px-2.5 py-1.5 rounded bg-[#0A1B39] hover:bg-[#132B52] font-semibold text-white flex items-center justify-between border border-[#132B52]"
+              className="w-full text-left px-2.5 py-1.5 rounded bg-[#0A1B39] [data-theme='white']:bg-slate-100 hover:bg-[#132B52] [data-theme='white']:hover:bg-slate-200 font-semibold text-white [data-theme='white']:text-slate-900 flex items-center justify-between border border-[#132B52] [data-theme='white']:border-slate-300 cursor-pointer"
             >
-              <span>{t.traffic.exitGeofence}</span>
-              <span className="text-[#AFC4E8] font-bold text-[10px]">RESTORE</span>
+              <span>Trigger Geofence Exit (Normal Cycling)</span>
+              <span className="text-[#AFC4E8] [data-theme='white']:text-slate-600 font-bold text-[10px]">RESTORE</span>
             </button>
 
             <button
               onClick={() => trafficSignalService.resetSimulation()}
-              className="w-full text-left px-2.5 py-1.5 rounded bg-[#0A1B39] hover:bg-[#132B52] font-semibold text-white flex items-center justify-between border border-[#132B52]"
+              className="w-full text-left px-2.5 py-1.5 rounded bg-[#0A1B39] [data-theme='white']:bg-slate-100 hover:bg-[#132B52] [data-theme='white']:hover:bg-slate-200 font-semibold text-white [data-theme='white']:text-slate-900 flex items-center justify-between border border-[#132B52] [data-theme='white']:border-slate-300 cursor-pointer"
             >
-              <span>{t.traffic.resetRoute}</span>
+              <span>Reset Route to Start</span>
               <RotateCcw size={12} className="text-[#1677FF]" />
             </button>
           </div>
@@ -478,44 +864,133 @@ export function LiveGPSTrafficControl() {
   );
 }
 
-// Helper to create HTML for Moving Ambulance Marker on Google Map
-function createAmbulanceMarkerHtml(ambulance: AmbulanceState): string {
+// Realistic Animated Ambulance Marker with Dual Flashing Strobes and Road Rotation
+function createRealisticAmbulanceMarkerHtml(ambulance: AmbulanceState): string {
   return `
-    <div style="position: relative; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;">
-      <!-- Glowing Red Radar Ripple -->
-      <div style="position: absolute; width: 40px; height: 40px; border-radius: 50%; background: rgba(245, 34, 53, 0.35); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-      <!-- Ambulance Shell -->
-      <div style="width: 32px; height: 32px; border-radius: 50%; background: #030D1E; border: 2.5px solid #1677FF; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 14px rgba(22, 119, 255, 0.9); z-index: 10;">
-        <span style="font-size: 16px;">🚑</span>
+    <div style="position: relative; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;">
+      <!-- Siren pulse wave -->
+      <div style="position: absolute; width: 52px; height: 52px; border-radius: 50%; background: rgba(22, 119, 255, 0.25); border: 1.5px solid rgba(22, 119, 255, 0.6); animation: ping 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+      
+      <!-- Direction-aligned rotating vehicle -->
+      <div style="transform: rotate(${ambulance.heading}deg); transform-origin: center center; width: 34px; height: 48px; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+        
+        <!-- Forward Headlight Beams -->
+        <div style="position: absolute; top: -14px; width: 28px; height: 18px; background: radial-gradient(ellipse at bottom, rgba(255,255,200,0.6) 0%, rgba(255,255,200,0) 80%); pointer-events: none;"></div>
+
+        <!-- Vehicle Body (SVG Top View) -->
+        <svg width="30" height="44" viewBox="0 0 30 44" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 4px 10px rgba(0,0,0,0.7));">
+          <!-- Main Chassis -->
+          <rect x="2" y="2" width="26" height="40" rx="6" fill="#FFFFFF" stroke="#0F172A" stroke-width="1.8"/>
+          
+          <!-- Red Emergency Stripe (Side/Back) -->
+          <rect x="2" y="16" width="26" height="4" fill="#EF4444"/>
+          <rect x="2" y="32" width="26" height="3" fill="#EF4444"/>
+          
+          <!-- Front Windshield -->
+          <path d="M5 8C5 6 7 4 10 4H20C23 4 25 6 25 8V12H5V8Z" fill="#1E293B"/>
+          
+          <!-- Rear Windows -->
+          <rect x="5" y="37" width="8" height="3" rx="1" fill="#1E293B"/>
+          <rect x="17" y="37" width="8" height="3" rx="1" fill="#1E293B"/>
+
+          <!-- Red Cross on Roof -->
+          <rect x="13.5" y="21" width="3" height="9" rx="0.5" fill="#EF4444"/>
+          <rect x="10.5" y="24" width="9" height="3" rx="0.5" fill="#EF4444"/>
+        </svg>
+
+        <!-- Roof Emergency Lightbar: Flashing Dual LED Strobes -->
+        <div style="position: absolute; top: 13px; width: 16px; height: 6px; background: #0F172A; border-radius: 2px; display: flex; align-items: center; justify-content: space-between; padding: 0 1px; box-shadow: 0 0 6px rgba(0,0,0,0.8); z-index: 10;">
+          <div style="width: 5px; height: 4px; border-radius: 1px; background: #FF1744; box-shadow: 0 0 8px #FF1744; animation: flashRed 0.4s infinite alternate;"></div>
+          <div style="width: 5px; height: 4px; border-radius: 1px; background: #2979FF; box-shadow: 0 0 8px #2979FF; animation: flashBlue 0.4s infinite alternate 0.2s;"></div>
+        </div>
       </div>
-      <!-- Flasher beacon top dot -->
-      <div style="position: absolute; top: 2px; width: 8px; height: 8px; border-radius: 50%; background: #F52235; box-shadow: 0 0 8px #F52235; border: 1px solid white;"></div>
+    </div>
+
+    <style>
+      @keyframes flashRed {
+        0% { opacity: 0.3; transform: scale(0.9); }
+        100% { opacity: 1; transform: scale(1.3); }
+      }
+      @keyframes flashBlue {
+        0% { opacity: 0.3; transform: scale(0.9); }
+        100% { opacity: 1; transform: scale(1.3); }
+      }
+    </style>
+  `;
+}
+
+// Multi-Way Rotary / Junction Center Hub Marker (IG 4-Way Junction and Muruga 5-Way Rotary)
+function createMultiWaySignalMarkerHtml(signal: TrafficSignal, isAmbulanceInGeofence: boolean, isSelected: boolean): string {
+  const isIG = signal.id === 'SIG-IG';
+  const stemCount = signal.stems ? signal.stems.length : (isIG ? 4 : 5);
+  const borderColor = isAmbulanceInGeofence ? '#00D68F' : (isSelected ? '#38BDF8' : '#1677FF');
+  const shadowColor = isAmbulanceInGeofence ? '0 0 22px rgba(0,214,143,0.95)' : '0 0 14px rgba(22,119,255,0.6)';
+  const label = isIG ? 'IG 4-WAY STATUE' : 'MURUGA 5-WAY ROTARY';
+  const tagText = isAmbulanceInGeofence 
+    ? (isIG ? '⚡ IG CORRIDOR GREEN' : '⚡ 5-WAY ROTARY ACTIVE') 
+    : label;
+
+  return `
+    <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer; position: relative;">
+      <!-- Central Hub Beacon -->
+      <div style="width: 44px; height: 44px; border-radius: 50%; background: #020914; border: 3px solid ${borderColor}; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: ${shadowColor}, 0 4px 12px rgba(0,0,0,0.85); z-index: 10;">
+        <span style="font-size: 15px; color: ${borderColor}; font-weight: 900; line-height: 1;">${isIG ? '✚' : '↻'}</span>
+        <span style="font-size: 7.5px; font-weight: 900; color: #FFFFFF; line-height: 1; margin-top: 1px;">${stemCount}-WAY</span>
+      </div>
+
+      <!-- Status Tag -->
+      <div style="background: ${isAmbulanceInGeofence ? '#00D68F' : '#0A1B39'}; color: ${isAmbulanceInGeofence ? '#030D1E' : '#FFFFFF'}; font-weight: 900; font-size: 8px; padding: 2px 7px; border-radius: 4px; border: 1.5px solid white; white-space: nowrap; box-shadow: 0 3px 8px rgba(0,0,0,0.85); margin-top: 2px; z-index: 11;">
+        ${tagText}
+      </div>
     </div>
   `;
 }
 
-// Helper to create HTML for Traffic Signal Marker Pin directly on Google Map
-function createSignalMarkerHtml(signal: TrafficSignal, isGreen: boolean, isSelected: boolean): string {
-  const lampRedBg = isGreen ? '#40080c' : '#F52235';
+// Dedicated Physical Stem Marker: Rendered directly on each of the 5 road branches meeting at the rotary
+function createIndividualStemMarkerHtml(stem: SignalStem, isAmbulanceInGeofence: boolean): string {
+  const isGreen = stem.state === 'GREEN';
+  const color = isGreen ? '#00D68F' : '#F52235';
+  const glow = isGreen ? '0 0 16px #00D68F, 0 0 4px #FFFFFF' : '0 0 9px #F52235';
+  const icon = isGreen ? '➔' : '✋';
+  const actionLabel = isGreen ? 'PASS' : 'STOP';
+
+  return `
+    <div style="display: flex; flex-direction: column; align-items: center; position: relative; pointer-events: auto; cursor: pointer;">
+      ${isGreen ? `
+        <!-- Animated Green Pulse Ring for approaching corridor -->
+        <div style="position: absolute; top: -5px; width: 38px; height: 38px; border-radius: 50%; background: rgba(0, 214, 143, 0.3); border: 2px solid #00D68F; animation: ping 1.2s cubic-bezier(0, 0, 0.2, 1) infinite; pointer-events: none;"></div>
+      ` : ''}
+
+      <!-- Signal Lamp Head -->
+      <div style="width: 26px; height: 26px; border-radius: 50%; background: ${color}; border: 2px solid #FFFFFF; display: flex; align-items: center; justify-content: center; box-shadow: ${glow}, 0 3px 8px rgba(0,0,0,0.85); z-index: 15;">
+        <span style="font-size: ${isGreen ? '14px' : '11px'}; color: ${isGreen ? '#020914' : '#FFFFFF'}; font-weight: 900; line-height: 1;">${icon}</span>
+      </div>
+
+      <!-- Road Arm Badge -->
+      <div style="background: #020914; color: ${color}; font-weight: 900; font-size: 7.5px; padding: 1.5px 5px; border-radius: 4px; border: 1.5px solid ${color}; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.9); margin-top: 2px; display: flex; align-items: center; gap: 3px; z-index: 16;">
+        <span style="letter-spacing: 0.2px;">${stem.name.split(':')[0]}</span>
+        <span style="background: ${color}; color: ${isGreen ? '#020914' : '#FFFFFF'}; border-radius: 2px; padding: 0.5px 3px; font-size: 6.5px; font-weight: 900;">${actionLabel}</span>
+      </div>
+    </div>
+  `;
+}
+
+// Standard 3-Lamp Pole for other junctions
+function createStandardSignalMarkerHtml(signal: TrafficSignal, isGreen: boolean, isSelected: boolean): string {
+  const lampRedBg = isGreen ? '#3a080c' : '#F52235';
   const lampRedGlow = isGreen ? 'none' : '0 0 10px #F52235';
-  const lampGreenBg = isGreen ? '#00D68F' : '#08331e';
+  const lampGreenBg = isGreen ? '#00D68F' : '#082a19';
   const lampGreenGlow = isGreen ? '0 0 12px #00D68F' : 'none';
   const borderColor = isSelected ? '#00D68F' : '#ffffff';
 
   return `
     <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer;">
-      <!-- Signal Housing Box -->
       <div style="background: #020914; border: 2px solid ${borderColor}; border-radius: 6px; padding: 3px 4px; box-shadow: 0 4px 14px rgba(0,0,0,0.8); display: flex; flex-direction: column; gap: 3px; align-items: center;">
-        <!-- Red Light -->
         <div style="width: 10px; height: 10px; border-radius: 50%; background: ${lampRedBg}; box-shadow: ${lampRedGlow}; border: 1px solid rgba(255,255,255,0.3);"></div>
-        <!-- Yellow Light -->
         <div style="width: 10px; height: 10px; border-radius: 50%; background: #3b2a08; border: 1px solid rgba(255,255,255,0.2);"></div>
-        <!-- Green Light -->
         <div style="width: 10px; height: 10px; border-radius: 50%; background: ${lampGreenBg}; box-shadow: ${lampGreenGlow}; border: 1px solid rgba(255,255,255,0.3);"></div>
       </div>
-      <!-- Signal Post Pole -->
-      <div style="width: 3px; height: 10px; background: #64748B;"></div>
-      <!-- Name Pin Label -->
+      <div style="width: 3px; height: 8px; background: #64748B;"></div>
       <div style="background: ${isSelected ? '#00D68F' : '#0A1B39'}; color: ${isSelected ? '#030D1E' : '#FFFFFF'}; font-weight: 800; font-size: 8.5px; padding: 1px 4px; border-radius: 4px; border: 1px solid white; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,0.6); margin-top: -2px;">
         ${signal.name}
       </div>

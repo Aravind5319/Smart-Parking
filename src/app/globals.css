@@ -21,21 +21,28 @@
   --background: #06152F;
   --foreground: #FFFFFF;
   --card-bg: #0A1B39;
-  --card-border: #1A365D;
+  --card-border: #132B52;
   --card-inner: #06152F;
   --card-inner-border: #132B52;
   --text-main: #FFFFFF;
   --text-sub: #AFC4E8;
-  --text-subtle: #6B87B5;
-  --header-bg: linear-gradient(to right, #030D1E, #06152F, #040E20);
-  --header-border: #132B52;
+  --text-subtle: #7995C2;
+  --modal-bg: #06152F;
+  --modal-border: #1677FF;
+  --input-bg: #0A1B39;
+  --input-border: #132B52;
+  --input-text: #FFFFFF;
+  --input-placeholder: rgba(175, 196, 232, 0.5);
+  --table-head-bg: #06152F;
+  --table-border: #132B52;
+  --table-hover: rgba(22, 119, 255, 0.08);
   --badge-bg: #06152F;
   --badge-border: #132B52;
-  --scrollbar-track: rgba(6, 21, 47, 0.4);
+  --scrollbar-track: rgba(6, 21, 47, 0.5);
   --scrollbar-thumb: #1677FF;
 }
 
-/* Light / White Police Command Theme - Crisp, High Contrast, Executive */
+/* Light / Executive White Command Theme */
 [data-theme="white"] {
   --background: #F1F5F9;
   --foreground: #0F172A;
@@ -46,8 +53,15 @@
   --text-main: #0F172A;
   --text-sub: #334155;
   --text-subtle: #64748B;
-  --header-bg: linear-gradient(to right, #081630, #0E244D, #081630);
-  --header-border: #1E3A6B;
+  --modal-bg: #FFFFFF;
+  --modal-border: #1677FF;
+  --input-bg: #FFFFFF;
+  --input-border: #CBD5E1;
+  --input-text: #0F172A;
+  --input-placeholder: #94A3B8;
+  --table-head-bg: #F8FAFC;
+  --table-border: #E2E8F0;
+  --table-hover: #F1F5F9;
   --badge-bg: #F1F5F9;
   --badge-border: #CBD5E1;
   --scrollbar-track: #F1F5F9;
@@ -58,15 +72,28 @@
   box-sizing: border-box;
 }
 
+html, body {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   background-color: var(--background);
   color: var(--foreground);
   margin: 0;
   padding: 0;
-  font-family: var(--font-sans, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
-  overflow-x: hidden;
+  font-family: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
+  letter-spacing: -0.012em;
   user-select: none;
   transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+code, pre, .font-mono {
+  font-family: var(--font-mono), 'JetBrains Mono', 'SF Mono', Consolas, monospace !important;
+  font-feature-settings: "tnum" 1, "zero" 1;
 }
 
 /* Custom Scrollbars */
@@ -82,26 +109,6 @@ body {
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
   border-radius: 4px;
-}
-
-/* Radar pulse animation */
-@keyframes radar-pulse {
-  0% {
-    transform: scale(0.95);
-    opacity: 0.85;
-  }
-  50% {
-    transform: scale(1.08);
-    opacity: 0.35;
-  }
-  100% {
-    transform: scale(0.95);
-    opacity: 0.85;
-  }
-}
-
-.radar-glow {
-  animation: radar-pulse 2.2s infinite ease-in-out;
 }
 
 /* Police Beacon Glow Effects */
@@ -146,7 +153,7 @@ body {
   box-shadow: 0 8px 24px -2px rgba(15, 23, 42, 0.12), 0 4px 10px -1px rgba(15, 23, 42, 0.06);
 }
 
-/* Reusable Theme Tokens for Components */
+/* Reusable Theme Tokens */
 .theme-title {
   color: var(--text-main);
 }
@@ -164,7 +171,7 @@ body {
   border-color: var(--card-inner-border);
 }
 
-/* Ensure Leaflet controls work seamlessly with modern UI */
+/* Ensure Leaflet controls work seamlessly */
 .leaflet-container {
   font-family: inherit;
   z-index: 10;

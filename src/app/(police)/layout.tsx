@@ -9,13 +9,13 @@ export default function PoliceLayout({
 }>) {
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[var(--background)] text-[var(--foreground)] font-sans antialiased transition-colors duration-200">
-      {/* Top Header (9-11% of height) */}
+      {/* Top Header */}
       <Header />
 
       {/* Main Body: Left Sidebar + Main Workspace */}
-      <div className="flex flex-1 overflow-hidden w-full h-[calc(100vh-74px)] relative">
+      <div className="flex flex-1 min-h-0 overflow-hidden w-full relative">
         <Sidebar />
-        <main className="flex-1 overflow-y-auto lg:overflow-hidden p-2 lg:p-3 bg-[var(--background)] transition-all duration-300 ease-in-out">
+        <main className="flex-1 min-h-0 h-full overflow-hidden flex flex-col p-2 sm:p-2.5 lg:p-2.5 bg-[var(--background)] transition-all duration-300 ease-in-out">
           {children}
         </main>
       </div>

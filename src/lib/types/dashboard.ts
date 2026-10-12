@@ -42,6 +42,16 @@ export interface AmbulanceState {
 
 export type SignalLightColor = 'RED' | 'YELLOW' | 'GREEN';
 
+export interface SignalStem {
+  id: string;
+  name: string;
+  directionLabel: string;
+  angleDegrees: number;
+  state: SignalLightColor;
+  isAmbulanceApproach: boolean;
+  coords?: { lat: number; lng: number };
+}
+
 export interface TrafficSignal {
   id: string;
   name: string;
@@ -50,6 +60,11 @@ export interface TrafficSignal {
   state: SignalLightColor;
   isEmergencyOverride: boolean;
   cycleSeconds: number;
+  direction?: string;
+  geofenceRadius?: number;
+  distanceToAmbulance?: number;
+  isInsideGeofence?: boolean;
+  stems?: SignalStem[];
 }
 
 export interface GeofenceArea {
@@ -59,6 +74,8 @@ export interface GeofenceArea {
   targetSignalId: string;
   isActive: boolean;
   isAmbulanceInside: boolean;
+  distanceToAmbulance?: number;
+  currentSignalName?: string;
 }
 
 export interface TrafficEvent {
@@ -69,18 +86,34 @@ export interface TrafficEvent {
   severity: 'info' | 'warning' | 'urgent';
 }
 
+export type CitizenReportStatus = 
+  | 'Pending' 
+  | 'In Progress' 
+  | 'Resolved' 
+  | 'PENDING' 
+  | 'CHALLAN_ISSUED' 
+  | 'ENFORCEMENT_COMPLETE' 
+  | 'REJECTED';
+
 export interface CitizenReport {
   id: string;
   title: string;
   description: string;
-  category: 'Illegal Parking' | 'Road Damage' | 'Suspicious Person' | 'Street Light Not Working' | 'Other';
+  category: 'Illegal Parking' | 'Road Damage' | 'Suspicious Person' | 'Street Light Not Working' | 'Other' | string;
   imageUrl: string;
   location: string;
   coords: { lat: number; lng: number };
   reportedTime: string;
-  status: 'Pending' | 'In Progress' | 'Resolved';
+  status: CitizenReportStatus;
   reporterName: string;
   reporterContact: string;
+  registrationPlate?: string;
+  challanReference?: string;
+  challanNotes?: string;
+  penaltyAmount?: number;
+  mvaSection?: string;
+  rejectionReason?: string;
+  rawAppwriteId?: string;
 }
 
 export interface LostFoundItem {
@@ -94,4 +127,5 @@ export interface LostFoundItem {
   reportedTime: string;
   status: 'Unclaimed' | 'Claimed' | 'Under Verification';
   contactPerson: string;
+  rawAppwriteId?: string;
 }
