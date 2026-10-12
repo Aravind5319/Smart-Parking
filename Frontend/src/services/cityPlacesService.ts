@@ -4,7 +4,7 @@
 // ============================================================================
 
 import { CityPlace, PlaceCategory, NavigationSession } from '../types/navigation';
-import { ParkingZone } from './parkingService';
+import { ParkingZone, REAL_PUDUCHERRY_ZONES } from './parkingService';
 
 export const PUDUCHERRY_CITY_PLACES: CityPlace[] = [
   // 1. SMART PARKING FACILITIES (WITH CAMERA & LIVE SLOTS)
@@ -507,13 +507,28 @@ export function parkingZoneToCityPlace(z: ParkingZone): CityPlace {
   const occ = z.occupiedSlots || 10;
   const vacant = Math.max(0, total - occ);
 
+  const fallbackCoord = REAL_PUDUCHERRY_ZONES.find((rz) => rz.id === z.id)?.coordinates || {
+    latitude: 11.9338,
+    longitude: 79.8310,
+  };
+
+  const validCoords =
+    z.coordinates &&
+    typeof z.coordinates.latitude === 'number' &&
+    typeof z.coordinates.longitude === 'number' &&
+    !isNaN(z.coordinates.latitude) &&
+    !isNaN(z.coordinates.longitude) &&
+    z.coordinates.latitude !== 0
+      ? z.coordinates
+      : fallbackCoord;
+
   return {
     id: z.id,
     name: z.name,
     category: z.type === 'NO_PARKING_RED' ? 'NO_PARKING' : (isFree ? 'PARKING_FREE' : 'PARKING_SMART'),
     streetName: z.streetName,
     area: z.area,
-    coordinates: z.coordinates,
+    coordinates: validCoords,
     distanceKm: z.distanceKm || 0.5,
     walkingTimeMin: z.walkingTimeMin || 5,
     drivingTimeMin: Math.max(2, Math.round((z.distanceKm || 0.5) * 3)),
