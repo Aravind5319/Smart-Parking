@@ -13,6 +13,7 @@ import {
   Image,
   Platform,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { ParkingZone } from '../../services/parkingService';
@@ -48,6 +49,21 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
   const [measuredFps, setMeasuredFps] = useState(25.0);
   const [cameraIp, setCameraIp] = useState('192.168.0.100');
 
+  const DEFAULT_CLOUD_URL = 'https://leaves-likely-sharon-diamonds.trycloudflare.com';
+  const [gatewayUrl, setGatewayUrl] = useState<string>(() => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem('parkpuduvai_cam_gateway');
+        if (saved) return saved;
+      }
+    } catch (e) {}
+    return DEFAULT_CLOUD_URL;
+  });
+  const [showGatewayConfig, setShowGatewayConfig] = useState(false);
+  const [tempGatewayUrl, setTempGatewayUrl] = useState(gatewayUrl);
+
+  const cleanGatewayUrl = gatewayUrl.replace(/\/+$/, '');
+
   // Check Python Bridge status periodically
   useEffect(() => {
     if (!visible) return;
@@ -55,7 +71,7 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
     let isMounted = true;
     const checkBridgeStatus = async () => {
       try {
-        const res = await fetch('http://localhost:5001/status');
+        const res = await fetch(`${cleanGatewayUrl}/status`);
         if (res.ok) {
           const data = await res.json();
           if (isMounted) {
@@ -78,13 +94,13 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
     };
 
     checkBridgeStatus();
-    const interval = setInterval(checkBridgeStatus, 2500);
+    const interval = setInterval(checkBridgeStatus, 3000);
 
     return () => {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [visible]);
+  }, [visible, cleanGatewayUrl]);
 
   // Handle stream switching (Stream 2 is low latency; Stream 1 is HD)
   const handleSwitchStream = async (targetStream: '1' | '2') => {
@@ -92,10 +108,22 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
     setStreamError(false);
     setStreamKey(Date.now());
     try {
-      await fetch(`http://localhost:5001/switch_stream?stream=${targetStream}`);
+      await fetch(`${cleanGatewayUrl}/switch_stream?stream=${targetStream}`);
     } catch (e) {
       // Ignore switch error
     }
+  };
+
+  const handleSaveGateway = (url: string) => {
+    const trimmed = url.trim() || 'http://localhost:5001';
+    setGatewayUrl(trimmed);
+    setShowGatewayConfig(false);
+    setStreamKey(Date.now());
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('parkpuduvai_cam_gateway', trimmed);
+      }
+    } catch (e) {}
   };
 
   if (!zone) return null;
@@ -104,7 +132,7 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
   const occupied = zone.occupiedSlots || 14;
   const vacant = Math.max(0, total - occupied);
 
-  const localStreamUrl = `http://localhost:5001/video_feed?stream=${activeStream}&t=${streamKey}`;
+  const localStreamUrl = `${cleanGatewayUrl}/video_feed?stream=${activeStream}&t=${streamKey}`;
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
@@ -150,7 +178,7 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
             <Text style={styles.streamStatusDetailText}>
               {isRealHardwareCam
                 ? '🟢 Physical IP Camera Stream Active'
-                : '🟡 Connect PC to Camera Wi-Fi for live stream'}
+                : '🟡 Standby CCTV Feed • Live Cloud Gateway'}
             </Text>
           </View>
 
@@ -174,8 +202,64 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
                 🎯 HD (Stream 1)
               </Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.streamToggleBtn, showGatewayConfig && { backgroundColor: '#3B82F6' }]}
+              onPress={() => setShowGatewayConfig(!showGatewayConfig)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.streamToggleText, showGatewayConfig && { color: '#FFFFFF', fontWeight: '900' }]}>
+                ⚙️ Cloud URL
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
+
+        {/* Long-Distance Cloud Gateway Configuration Bar */}
+        {showGatewayConfig && (
+          <View style={styles.gatewayDrawer}>
+            <Text style={styles.gatewayDrawerTitle}>
+              🌐 Cloud Stream Gateway (For Remote 3rd Floor / Mobile 5G Access):
+            </Text>
+            <View style={styles.gatewayInputRow}>
+              <TextInput
+                style={styles.gatewayInput}
+                value={tempGatewayUrl}
+                onChangeText={setTempGatewayUrl}
+                placeholder="https://xyz.trycloudflare.com or http://localhost:5001"
+                placeholderTextColor="#64748B"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <TouchableOpacity
+                style={styles.gatewaySaveBtn}
+                onPress={() => handleSaveGateway(tempGatewayUrl)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.gatewaySaveBtnText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.gatewayPresetsRow}>
+              <TouchableOpacity
+                onPress={() => {
+                  setTempGatewayUrl('https://leaves-likely-sharon-diamonds.trycloudflare.com');
+                  handleSaveGateway('https://leaves-likely-sharon-diamonds.trycloudflare.com');
+                }}
+              >
+                <Text style={styles.presetLink}>Use Cloudflare Public Tunnel</Text>
+              </TouchableOpacity>
+              <Text style={{ color: '#475569' }}>•</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setTempGatewayUrl('http://localhost:5001');
+                  handleSaveGateway('http://localhost:5001');
+                }}
+              >
+                <Text style={styles.presetLink}>Use Localhost</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Video Monitor Frame */}
         <View style={styles.videoMonitorContainer}>
@@ -450,6 +534,59 @@ const styles = StyleSheet.create({
   streamToggleTextActive: {
     color: '#FFFFFF',
     fontWeight: '900',
+  },
+  gatewayDrawer: {
+    backgroundColor: '#071630',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
+  },
+  gatewayDrawerTitle: {
+    color: '#93C5FD',
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  gatewayInputRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  gatewayInput: {
+    flex: 1,
+    height: 36,
+    backgroundColor: '#1E293B',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  gatewaySaveBtn: {
+    backgroundColor: '#2563EB',
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gatewaySaveBtnText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  gatewayPresetsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 6,
+  },
+  presetLink: {
+    color: '#60A5FA',
+    fontSize: 10,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   videoMonitorContainer: {
     width: '100%',
