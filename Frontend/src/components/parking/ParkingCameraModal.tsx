@@ -1,6 +1,6 @@
 // ============================================================================
 // PARKPUDUVAI - SMART PARKING AVAILABILITY SYSTEM
-// Dual-Approach Optical AI: Angled Perspective Bay Sensing & Gate ANPR Counter
+// Dual-Approach Optical AI: Gate Entrance ANPR Counter (Default) & Fence Space Sensing
 // ============================================================================
 
 import React, { useState, useEffect } from 'react';
@@ -16,7 +16,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { ParkingZone } from '../../services/parkingService';
-import { NavigationIcon, CheckmarkIcon, RefreshIcon, CameraIcon, CarIcon } from '../common/Icons';
+import { NavigationIcon, CheckmarkIcon, CameraIcon, CarIcon } from '../common/Icons';
 
 interface GateRecord {
   id: string;
@@ -43,23 +43,25 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
   onClose,
   onNavigateToBay,
 }) => {
-  // Operational Approach: 'bays' (Angled Bay Space Sensing) | 'gate' (Entrance/Exit ANPR Counter)
-  const [approach, setApproach] = useState<'bays' | 'gate'>('bays');
+  // Operational Approach: DEFAULT IS 'gate' (Gate Entrance ANPR Counter) as requested by user
+  const [approach, setApproach] = useState<'gate' | 'fence'>('gate');
   const [streamKey, setStreamKey] = useState(Date.now());
   const [isLiveCamera, setIsLiveCamera] = useState(true);
   const [streamError, setStreamError] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [triggeringCapture, setTriggeringCapture] = useState(false);
 
-  // Approach 1: Bay Space Sensing Metrics
-  const [bayStats, setBayStats] = useState({
-    totalSlots: 5,
-    vacantSlots: 3,
-    occupiedSlots: 2,
+  // Approach 1: Longitudinal Fence Space Sensing Metrics
+  const [fenceStats, setFenceStats] = useState({
+    totalSections: 4,
+    availableCarSpaces: 3,
+    availableBikeSpaces: 8,
+    occupiedSections: 1,
+    statusText: 'Space Available along Fence',
     fps: 26.0,
   });
 
-  // Approach 2: Gate Entrance / Exit Counter Metrics
+  // Approach 2: Gate Entrance / Exit Counter Metrics (Default)
   const [gateStats, setGateStats] = useState({
     totalCapacity: 100,
     enteredToday: 43,
@@ -74,7 +76,7 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
   const localBridgeBase = 'http://localhost:5001';
   const videoStreamUrl = `${localBridgeBase}/video_feed?mode=${approach}&t=${streamKey}`;
 
-  // Poll detection status & gate log
+  // Poll detection status & gate log every 1.2 seconds
   useEffect(() => {
     if (!visible) return;
 
@@ -88,11 +90,13 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
             setIsLiveCamera(Boolean(data.is_real_camera));
             setStreamError(false);
 
-            if (data.bay_stats) {
-              setBayStats({
-                totalSlots: data.bay_stats.total_slots || 5,
-                vacantSlots: data.bay_stats.vacant_slots || 0,
-                occupiedSlots: data.bay_stats.occupied_slots || 0,
+            if (data.fence_stats) {
+              setFenceStats({
+                totalSections: data.fence_stats.total_sections || 4,
+                availableCarSpaces: data.fence_stats.available_car_spaces || 3,
+                availableBikeSpaces: data.fence_stats.available_bike_spaces || 8,
+                occupiedSections: data.fence_stats.occupied_sections || 1,
+                statusText: data.fence_stats.status_text || 'Space Available along Fence',
                 fps: data.fps || 25.0,
               });
             }
@@ -126,16 +130,12 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
     };
 
     fetchStats();
-    if (approach === 'gate') {
-      fetchGateLog();
-    }
+    fetchGateLog();
 
     const interval = setInterval(() => {
       fetchStats();
-      if (approach === 'gate') {
-        fetchGateLog();
-      }
-    }, 1500);
+      fetchGateLog();
+    }, 1200);
 
     return () => {
       isMounted = false;
@@ -144,13 +144,13 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
   }, [visible, approach]);
 
   // Switch Approach mode
-  const handleSelectApproach = (mode: 'bays' | 'gate') => {
+  const handleSelectApproach = (mode: 'gate' | 'fence') => {
     setApproach(mode);
     setStreamKey(Date.now());
     setStreamError(false);
   };
 
-  // Manually trigger vehicle entry/exit test
+  // Test vehicle crossing trigger
   const handleTriggerGateTest = async (dir: 'IN' | 'OUT') => {
     try {
       setTriggeringCapture(true);
@@ -182,8 +182,6 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
 
   if (!visible) return null;
 
-  const titleName = zone?.name || 'Smart Parking Availability';
-
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
       <View style={styles.container}>
@@ -192,10 +190,10 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
           <View style={styles.headerLeft}>
             <View style={styles.liveIndicator}>
               <View style={[styles.liveDot, { backgroundColor: isLiveCamera ? '#10B981' : '#F59E0B' }]} />
-              <Text style={styles.liveText}>{isLiveCamera ? 'LIVE SENSOR ACTIVE' : 'CCTV STANDBY'}</Text>
+              <Text style={styles.liveText}>{isLiveCamera ? 'LIVE OPTICAL SENSOR' : 'CCTV STANDBY'}</Text>
             </View>
             <Text style={styles.headerTitle} numberOfLines={1}>
-              {titleName}
+              Smart Parking Availability
             </Text>
             <Text style={styles.headerSubtitle}>Real-Time Optical Space Sensing</Text>
           </View>
@@ -210,18 +208,8 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
           showsVerticalScrollIndicator={false}
           bounces={false}
         >
-          {/* Dual-Approach Soft Toggle Pill */}
+          {/* Dual-Approach Soft Toggle Pill (Default is Gate Entrance & ANPR) */}
           <View style={styles.toggleContainer}>
-            <TouchableOpacity
-              style={[styles.toggleBtn, approach === 'bays' && styles.toggleBtnActive]}
-              onPress={() => handleSelectApproach('bays')}
-              activeOpacity={0.85}
-            >
-              <Text style={[styles.toggleText, approach === 'bays' && styles.toggleTextActive]}>
-                Bay Space Sensing
-              </Text>
-            </TouchableOpacity>
-
             <TouchableOpacity
               style={[styles.toggleBtn, approach === 'gate' && styles.toggleBtnActive]}
               onPress={() => handleSelectApproach('gate')}
@@ -231,9 +219,19 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
                 Gate Entrance & ANPR
               </Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.toggleBtn, approach === 'fence' && styles.toggleBtnActive]}
+              onPress={() => handleSelectApproach('fence')}
+              activeOpacity={0.85}
+            >
+              <Text style={[styles.toggleText, approach === 'fence' && styles.toggleTextActive]}>
+                Fence Space Sensing
+              </Text>
+            </TouchableOpacity>
           </View>
 
-          {/* 16:9 Video Monitor Card */}
+          {/* 16:9 Responsive Video Monitor Card */}
           <View style={styles.videoCard}>
             {Platform.OS === 'web' && !streamError ? (
               <img
@@ -256,71 +254,14 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
             )}
           </View>
 
-          {/* APPROACH 1: BAY SPACE SENSING */}
-          {approach === 'bays' && (
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>Live Parking Space Availability</Text>
-                <View style={styles.statusPill}>
-                  <CheckmarkIcon size={12} color="#059669" />
-                  <Text style={styles.statusPillText}>Angled Kerb Sensor</Text>
-                </View>
-              </View>
-
-              {/* 2x2 Clean Metrics Grid */}
-              <View style={styles.statsRow}>
-                <View style={[styles.statBox, styles.statBoxVacant]}>
-                  <Text style={styles.statNumVacant}>{bayStats.vacantSlots}</Text>
-                  <Text style={styles.statLabel}>Available Bays</Text>
-                  <Text style={styles.statNote}>Ready to Park</Text>
-                </View>
-
-                <View style={[styles.statBox, styles.statBoxOccupied]}>
-                  <Text style={styles.statNumOccupied}>{bayStats.occupiedSlots}</Text>
-                  <Text style={styles.statLabel}>Occupied</Text>
-                  <Text style={styles.statNote}>Cars / Bikes</Text>
-                </View>
-              </View>
-
-              <View style={styles.statsRow}>
-                <View style={styles.statBox}>
-                  <Text style={styles.statNumNeutral}>{bayStats.totalSlots}</Text>
-                  <Text style={styles.statLabel}>Total Bays</Text>
-                  <Text style={styles.statNote}>Side-Angle View</Text>
-                </View>
-
-                <View style={styles.statBox}>
-                  <Text style={styles.statNumBlue}>{bayStats.fps}</Text>
-                  <Text style={styles.statLabel}>Optical FPS</Text>
-                  <Text style={styles.statNote}>Zero Latency</Text>
-                </View>
-              </View>
-
-              {/* Navigation Action Button */}
-              {onNavigateToBay && zone && (
-                <TouchableOpacity
-                  style={styles.actionBtn}
-                  onPress={() => {
-                    onClose();
-                    onNavigateToBay(zone);
-                  }}
-                  activeOpacity={0.85}
-                >
-                  <NavigationIcon color="#FFFFFF" size={17} />
-                  <Text style={styles.actionBtnText}>Navigate to Available Bay</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-
-          {/* APPROACH 2: GATE ENTRANCE & ANPR COUNTER */}
+          {/* APPROACH 2: GATE ENTRANCE & ANPR COUNTER (DEFAULT) */}
           {approach === 'gate' && (
             <View style={styles.card}>
               <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>Entrance / Exit Capacity Counter</Text>
+                <Text style={styles.cardTitle}>Facility Capacity & Vehicle Flow</Text>
                 <View style={styles.statusPill}>
                   <CameraIcon size={13} color="#059669" />
-                  <Text style={styles.statusPillText}>Gate ANPR Active</Text>
+                  <Text style={styles.statusPillText}>Auto-Capture Active</Text>
                 </View>
               </View>
 
@@ -329,7 +270,7 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
                 <View style={styles.heroCapLeft}>
                   <Text style={styles.heroCapNumber}>{gateStats.availableSpots}</Text>
                   <View>
-                    <Text style={styles.heroCapTitle}>Spots Available</Text>
+                    <Text style={styles.heroCapTitle}>Spots Available to Park</Text>
                     <Text style={styles.heroCapSubtitle}>
                       Out of {gateStats.totalCapacity} Total Facility Capacity
                     </Text>
@@ -351,7 +292,7 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
                   />
                 </View>
                 <Text style={styles.progressNote}>
-                  {gateStats.currentlyInside} vehicles parked inside • {gateStats.availableSpots} spots remaining
+                  {gateStats.currentlyInside} vehicles currently inside • {gateStats.availableSpots} spots free
                 </Text>
               </View>
 
@@ -376,44 +317,24 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
                 </View>
               </View>
 
-              {/* Simulated / Real Capture Trigger Buttons */}
-              <View style={styles.triggerRow}>
-                <TouchableOpacity
-                  style={[styles.triggerBtn, styles.triggerBtnIn]}
-                  onPress={() => handleTriggerGateTest('IN')}
-                  disabled={triggeringCapture}
-                  activeOpacity={0.8}
-                >
-                  {triggeringCapture ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <CarIcon size={16} color="#FFFFFF" />
-                      <Text style={styles.triggerBtnText}>Simulate Entry (+1)</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.triggerBtn, styles.triggerBtnOut]}
-                  onPress={() => handleTriggerGateTest('OUT')}
-                  disabled={triggeringCapture}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.triggerBtnTextOut}>Simulate Exit (-1)</Text>
-                </TouchableOpacity>
+              {/* Automatic Camera Shutter Banner */}
+              <View style={styles.autoTriggerBanner}>
+                <View style={styles.autoTriggerDot} />
+                <Text style={styles.autoTriggerText}>
+                  Automatic Shutter Active: When a car or bike passes through the entrance tripwire, the camera automatically takes a screenshot, logs the license plate, and saves it below.
+                </Text>
               </View>
 
-              {/* Gate Crossings & Snapshot Log */}
+              {/* Today's Gate Crossings & Snapshot Log */}
               <View style={styles.logHeader}>
-                <Text style={styles.logTitle}>Today's Gate Crossings & Vehicle Photos</Text>
-                <Text style={styles.logCount}>{gateRecords.length} Recorded</Text>
+                <Text style={styles.logTitle}>Today's Crossed Vehicles & Photos</Text>
+                <Text style={styles.logCount}>{gateRecords.length} Saved in DB</Text>
               </View>
 
               <View style={styles.recordsList}>
                 {gateRecords.map((item) => (
                   <View key={item.id} style={styles.recordItem}>
-                    {/* Snapshot Photo Thumbnail */}
+                    {/* Snapshot Photo Thumbnail (clickable) */}
                     <TouchableOpacity
                       onPress={() => setSelectedPhoto(item.imageUrl)}
                       activeOpacity={0.85}
@@ -450,6 +371,72 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
                   </View>
                 ))}
               </View>
+            </View>
+          )}
+
+          {/* APPROACH 1: LONGITUDINAL FENCE CORRIDOR SPACE SENSING */}
+          {approach === 'fence' && (
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>Fence Boundary Space Sensing</Text>
+                <View style={styles.statusPill}>
+                  <CheckmarkIcon size={12} color="#059669" />
+                  <Text style={styles.statusPillText}>Full Fence Line Active</Text>
+                </View>
+              </View>
+
+              <View style={styles.fenceInfoBanner}>
+                <Text style={styles.fenceInfoTitle}>
+                  Longitudinal Fence Corridor (Corner to Boundary)
+                </Text>
+                <Text style={styles.fenceInfoDesc}>
+                  The camera monitors the entire fence line from one corner to the far end. It calculates total continuous open space along the fence and displays how many vehicles can fit.
+                </Text>
+              </View>
+
+              {/* 2x2 Clean Metrics Grid */}
+              <View style={styles.statsRow}>
+                <View style={[styles.statBox, styles.statBoxVacant]}>
+                  <Text style={styles.statNumVacant}>{fenceStats.availableCarSpaces}</Text>
+                  <Text style={styles.statLabel}>Cars Space</Text>
+                  <Text style={styles.statNote}>Available along Fence</Text>
+                </View>
+
+                <View style={[styles.statBox, styles.statBoxVacant]}>
+                  <Text style={styles.statNumVacant}>{fenceStats.availableBikeSpaces}</Text>
+                  <Text style={styles.statLabel}>Bikes Space</Text>
+                  <Text style={styles.statNote}>Available along Fence</Text>
+                </View>
+              </View>
+
+              <View style={styles.statsRow}>
+                <View style={[styles.statBox, styles.statBoxOccupied]}>
+                  <Text style={styles.statNumOccupied}>{fenceStats.occupiedSections}</Text>
+                  <Text style={styles.statLabel}>Occupied Sections</Text>
+                  <Text style={styles.statNote}>Parked Vehicles</Text>
+                </View>
+
+                <View style={styles.statBox}>
+                  <Text style={styles.statNumBlue}>{fenceStats.totalSections}</Text>
+                  <Text style={styles.statLabel}>Monitored Span</Text>
+                  <Text style={styles.statNote}>Near to Far Fence</Text>
+                </View>
+              </View>
+
+              {/* Navigation Action Button */}
+              {onNavigateToBay && zone && (
+                <TouchableOpacity
+                  style={styles.actionBtn}
+                  onPress={() => {
+                    onClose();
+                    onNavigateToBay(zone);
+                  }}
+                  activeOpacity={0.85}
+                >
+                  <NavigationIcon color="#FFFFFF" size={17} />
+                  <Text style={styles.actionBtnText}>Navigate to Fence Parking Area</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
         </ScrollView>
@@ -639,74 +626,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10,
-  },
-  statBox: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  statBoxVacant: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
-  },
-  statBoxOccupied: {
-    backgroundColor: '#FEF2F2',
-    borderColor: '#FECACA',
-  },
-  statNumVacant: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#059669',
-  },
-  statNumOccupied: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#DC2626',
-  },
-  statNumNeutral: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  statNumBlue: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#2563EB',
-  },
-  statLabel: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#334155',
-    marginTop: 2,
-  },
-  statNote: {
-    fontSize: 10,
-    color: '#64748B',
-    marginTop: 1,
-  },
-  actionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#059669',
-    paddingVertical: 13,
-    borderRadius: 11,
-    marginTop: 6,
-  },
-  actionBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-  },
   heroCapacityBanner: {
     backgroundColor: '#F0FDF4',
     borderRadius: 14,
@@ -756,7 +675,7 @@ const styles = StyleSheet.create({
   gateSummaryRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   gateSummaryBox: {
     flex: 1,
@@ -793,37 +712,29 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: '#94A3B8',
   },
-  triggerRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  triggerBtn: {
-    flex: 1,
+  autoTriggerBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 9,
-  },
-  triggerBtnIn: {
-    backgroundColor: '#059669',
-  },
-  triggerBtnOut: {
-    backgroundColor: '#F1F5F9',
+    gap: 8,
+    backgroundColor: '#F0FDF4',
+    padding: 10,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: '#BBF7D0',
+    marginBottom: 14,
   },
-  triggerBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
+  autoTriggerDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10B981',
   },
-  triggerBtnTextOut: {
-    color: '#475569',
-    fontSize: 12,
-    fontWeight: '700',
+  autoTriggerText: {
+    flex: 1,
+    fontSize: 10.5,
+    color: '#065F46',
+    fontWeight: '600',
+    lineHeight: 14,
   },
   logHeader: {
     flexDirection: 'row',
@@ -913,6 +824,88 @@ const styles = StyleSheet.create({
   recordVehicleType: {
     fontSize: 10,
     color: '#64748B',
+  },
+  fenceInfoBanner: {
+    backgroundColor: '#F8FAFC',
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 12,
+  },
+  fenceInfoTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1E293B',
+    marginBottom: 3,
+  },
+  fenceInfoDesc: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 16,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 10,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  statBoxVacant: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  statBoxOccupied: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FECACA',
+  },
+  statNumVacant: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#059669',
+  },
+  statNumOccupied: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#DC2626',
+  },
+  statNumBlue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#2563EB',
+  },
+  statLabel: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#334155',
+    marginTop: 2,
+  },
+  statNote: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#059669',
+    paddingVertical: 13,
+    borderRadius: 11,
+    marginTop: 6,
+  },
+  actionBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
   },
   photoModalOverlay: {
     flex: 1,
