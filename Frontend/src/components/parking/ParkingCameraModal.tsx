@@ -61,8 +61,23 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
   });
   const [showGatewayConfig, setShowGatewayConfig] = useState(false);
   const [tempGatewayUrl, setTempGatewayUrl] = useState(gatewayUrl);
+  const getNormalizedGatewayUrl = (url: string) => {
+    let clean = url.trim();
+    if (!clean) return 'http://localhost:5001';
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      clean = 'https://' + clean;
+    }
+    clean = clean.replace(/\/+$/, '');
+    if (clean.endsWith('/video_feed')) {
+      clean = clean.slice(0, -'/video_feed'.length);
+    }
+    if (clean.endsWith('/status')) {
+      clean = clean.slice(0, -'/status'.length);
+    }
+    return clean;
+  };
 
-  const cleanGatewayUrl = gatewayUrl.replace(/\/+$/, '');
+  const cleanGatewayUrl = getNormalizedGatewayUrl(gatewayUrl);
 
   // Check Python Bridge status periodically
   useEffect(() => {
