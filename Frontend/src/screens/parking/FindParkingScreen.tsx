@@ -58,7 +58,11 @@ export const FindParkingScreen: React.FC = () => {
           const nonParking = PUDUCHERRY_CITY_PLACES.filter(
             (p) => p.category !== 'PARKING_SMART' && p.category !== 'PARKING_FREE' && p.category !== 'NO_PARKING'
           );
-          setPlaces([...appwritePlaces, ...nonParking]);
+          // Always ensure MVIT parking is included
+          const mvitPlace = PUDUCHERRY_CITY_PLACES.find((p) => p.id === 'zone-test-mvit');
+          const hasMvit = appwritePlaces.some((p) => p.id === 'zone-test-mvit' || p.name.toLowerCase().includes('mvit'));
+          const finalParking = hasMvit ? appwritePlaces : (mvitPlace ? [mvitPlace, ...appwritePlaces] : appwritePlaces);
+          setPlaces([...finalParking, ...nonParking]);
         }
       })
       .catch(() => {});
@@ -83,7 +87,7 @@ export const FindParkingScreen: React.FC = () => {
     return enrichPlacesWithUserLocation(places, userCoords);
   }, [places, userCoords]);
 
-  // Filtered Places based on Category Pill and Search Query, sorted by distance from user (Nearest first)
+  // Filtered Places based on Category Pill and Search Query, sorted with MVIT Parking pinned first
   const filteredPlaces = useMemo(() => {
     const filtered = enrichedPlaces.filter((place) => {
       // 1. Category Filter
@@ -104,8 +108,14 @@ export const FindParkingScreen: React.FC = () => {
       return true;
     });
 
-    // Always sort by distance ascending so the closest place is first and gets "⭐ NEAREST" badge
-    return [...filtered].sort((a, b) => a.distanceKm - b.distanceKm);
+    // Pinned: MVIT Parking is permanently pinned to the very top, followed by nearest distance
+    return [...filtered].sort((a, b) => {
+      const aIsMvit = a.id === 'zone-test-mvit' || a.name.toLowerCase().includes('mvit');
+      const bIsMvit = b.id === 'zone-test-mvit' || b.name.toLowerCase().includes('mvit');
+      if (aIsMvit && !bIsMvit) return -1;
+      if (!aIsMvit && bIsMvit) return 1;
+      return a.distanceKm - b.distanceKm;
+    });
   }, [enrichedPlaces, selectedCategory, searchQuery]);
 
   // Start Real Road Turn-by-Turn Navigation (OSRM street grid geometry)

@@ -22,7 +22,7 @@ export const APPWRITE_CONFIG = {
 
   // Storage Bucket ID for Citizen Evidence Photos
   BUCKETS: {
-    VIOLATION_PHOTOS: 'violation_photos',
+    VIOLATION_PHOTOS: process.env.EXPO_PUBLIC_APPWRITE_BUCKET_ID || '6ac89653002ecfd6cf10',
   },
 
   // Optional Server API Key (Used by setup scripts and administrative operations)

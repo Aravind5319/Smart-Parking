@@ -66,28 +66,9 @@ export default function App() {
   }, []);
 
   const handleReportSubmitted = (newReport: ViolationReport) => {
-    setTickets([newReport, ...tickets]);
-    setKarmaPoints((prev) => prev + newReport.karmaPoints);
+    setTickets((prev) => [newReport, ...prev.filter((t) => t.id !== newReport.id)]);
+    setKarmaPoints((prev) => prev + (newReport.karmaPoints || 50));
     setIsCameraActive(false);
-    setActiveTab('tickets');
-
-    // Persist to Appwrite Database asynchronously
-    AppwriteDb.createViolationReport(newReport).catch((err) => {
-      console.warn('Appwrite report persistence warning:', err);
-    });
-
-    const isCivic =
-      newReport.reportDomain === 'CIVIC_LOST_FOUND' ||
-      newReport.referenceNo.includes('CIV') ||
-      newReport.referenceNo.includes('FND') ||
-      newReport.referenceNo.includes('LST');
-
-    Alert.alert(
-      isCivic ? 'Found Item Registered & Published' : 'Report Submitted Successfully',
-      isCivic
-        ? `Reference Ticket: ${newReport.referenceNo}\n\n+${newReport.karmaPoints} Civic Karma points awarded to your profile.\n\n✓ Published to Public Advisories board so the owner can easily identify and claim the item at the Police Station.`
-        : `Reference Ticket: ${newReport.referenceNo}\n\n+${newReport.karmaPoints} Civic Karma points awarded to your profile.\n\nAssigned to Puducherry Traffic Police Control Room.`
-    );
   };
 
   const [emergencyModalVisible, setEmergencyModalVisible] = useState(false);

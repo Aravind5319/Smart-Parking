@@ -176,18 +176,74 @@ export const AppwriteDb = {
   },
 
   // ==========================================================================
-  // VIOLATION REPORTS / COMPLAINTS
+  // VIOLATION REPORTS / COMPLAINTS & STORAGE
   // ==========================================================================
 
   /**
-   * Save a new citizen violation report to Appwrite DB
+   * Upload citizen evidence photo to Appwrite Storage bucket (Smart-Parking Storage)
+   * Returns publicly accessible preview URL
    */
-  async createViolationReport(report: ViolationReport): Promise<{ success: boolean; documentId?: string }> {
+  async uploadEvidencePhoto(photoDataUrl: string): Promise<string | null> {
+    if (!isAppwriteConfigured() || !photoDataUrl) {
+      return photoDataUrl;
+    }
+
+    // Already a remote URL
+    if (photoDataUrl.startsWith('http://') || photoDataUrl.startsWith('https://')) {
+      return photoDataUrl;
+    }
+
+    try {
+      const bucketId = APPWRITE_CONFIG.BUCKETS.VIOLATION_PHOTOS;
+      const fileId = ID.unique();
+      let fileObj: any;
+
+      if (typeof window !== 'undefined' && photoDataUrl.startsWith('data:')) {
+        const parts = photoDataUrl.split(';base64,');
+        const contentType = parts[0].split(':')[1] || 'image/jpeg';
+        const raw = window.atob(parts[1]);
+        const rawLength = raw.length;
+        const uInt8Array = new Uint8Array(rawLength);
+        for (let i = 0; i < rawLength; ++i) {
+          uInt8Array[i] = raw.charCodeAt(i);
+        }
+        const blob = new Blob([uInt8Array], { type: contentType });
+        fileObj = new File([blob], `evidence_${Date.now()}.jpg`, { type: contentType });
+      } else {
+        return photoDataUrl;
+      }
+
+      const res = await storage.createFile(bucketId, fileId, fileObj);
+      const publicUrl = `${APPWRITE_CONFIG.ENDPOINT}/storage/buckets/${bucketId}/files/${res.$id}/view?project=${APPWRITE_CONFIG.PROJECT_ID}`;
+      return publicUrl;
+    } catch (err) {
+      console.warn('[Appwrite Storage] Evidence photo upload warning, keeping local cache:', err);
+      return photoDataUrl;
+    }
+  },
+
+  /**
+   * Save a new citizen violation report to Appwrite DB and upload photo to storage
+   */
+  async createViolationReport(report: ViolationReport): Promise<{ success: boolean; documentId?: string; photoUrl?: string }> {
+    let finalPhotoUri = report.photoUri || '';
+    if (finalPhotoUri && finalPhotoUri.startsWith('data:')) {
+      try {
+        const uploaded = await this.uploadEvidencePhoto(finalPhotoUri);
+        if (uploaded) {
+          finalPhotoUri = uploaded;
+          report.photoUri = uploaded;
+        }
+      } catch (e) {
+        console.warn('Storage upload error:', e);
+      }
+    }
+
     // Optimistic local update
     cachedTickets = [report, ...cachedTickets];
 
     if (!isAppwriteConfigured()) {
-      return { success: true, documentId: report.id };
+      return { success: true, documentId: report.id, photoUrl: finalPhotoUri };
     }
 
     try {
@@ -197,7 +253,7 @@ export const AppwriteDb = {
         ID.unique(),
         {
           referenceNo: report.referenceNo,
-          photoUri: report.photoUri || '',
+          photoUri: finalPhotoUri,
           latitude: report.location.latitude,
           longitude: report.location.longitude,
           landmark: report.location.landmark,
@@ -211,10 +267,10 @@ export const AppwriteDb = {
           challanNumber: report.challanNumber || '',
         }
       );
-      return { success: true, documentId: doc.$id };
+      return { success: true, documentId: doc.$id, photoUrl: finalPhotoUri };
     } catch (err) {
-      console.warn('[Appwrite] Error creating violation report:', err);
-      return { success: true, documentId: report.id };
+      console.warn('[Appwrite] Error creating violation report document:', err);
+      return { success: true, documentId: report.id, photoUrl: finalPhotoUri };
     }
   },
 

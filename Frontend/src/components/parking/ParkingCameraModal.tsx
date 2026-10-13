@@ -38,7 +38,7 @@ interface ParkingCameraModalProps {
   onNavigateToBay?: (zone: ParkingZone) => void;
 }
 
-const DEFAULT_CLOUDFLARE_URL = 'https://determination-kyle-drag-compatibility.trycloudflare.com';
+const DEFAULT_CLOUDFLARE_URL = 'https://crops-reference-ann-courier.trycloudflare.com';
 
 export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
   visible,
@@ -52,6 +52,20 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
   const [isLiveCamera, setIsLiveCamera] = useState(true);
   const [streamError, setStreamError] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+
+  // Live Real-Time Clock
+  const [liveTime, setLiveTime] = useState<string>(() =>
+    new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+  );
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setLiveTime(
+        new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+      );
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Cloudflare Tunnel State (for standalone APK mobile access outside router Wi-Fi)
   const [tunnelUrl, setTunnelUrl] = useState<string>(DEFAULT_CLOUDFLARE_URL);
@@ -340,35 +354,48 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
           {/* 16:9 Responsive Video Monitor Card */}
           <View style={styles.videoCard}>
             {isHardwareZone ? (
-              Platform.OS === 'web' && !streamError ? (
-                <img
-                  key={`stream-${approach}-${streamKey}`}
-                  src={videoStreamUrl}
-                  alt="Live Parking Video Feed"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    backgroundColor: '#000000',
-                    display: 'block',
-                  }}
-                  onError={() => setStreamError(true)}
-                />
-              ) : (
-                <View style={styles.fallbackBox}>
-                  <Text style={styles.fallbackTitle}>Camera Stream Connecting...</Text>
-                  <Text style={styles.fallbackSub}>Connecting to Cloudflare Gateway</Text>
-                  <TouchableOpacity
-                    style={styles.retryBtn}
-                    onPress={() => {
-                      setStreamError(false);
-                      setStreamKey(Date.now());
+              <View style={{ width: '100%', height: '100%', position: 'relative' }}>
+                {Platform.OS === 'web' && !streamError ? (
+                  <img
+                    key={`stream-${approach}-${streamKey}`}
+                    src={videoStreamUrl}
+                    alt="Live Parking Video Feed"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      backgroundColor: '#000000',
+                      display: 'block',
                     }}
-                  >
-                    <Text style={styles.retryBtnText}>Retry Stream</Text>
-                  </TouchableOpacity>
+                    onError={() => setStreamError(true)}
+                  />
+                ) : (
+                  <View style={styles.fallbackBox}>
+                    <Text style={styles.fallbackTitle}>Camera Stream Connecting...</Text>
+                    <Text style={styles.fallbackSub}>Connecting to Cloudflare Gateway ({activeBaseUrl})</Text>
+                    <TouchableOpacity
+                      style={styles.retryBtn}
+                      onPress={() => {
+                        setStreamError(false);
+                        setStreamKey(Date.now());
+                      }}
+                    >
+                      <Text style={styles.retryBtnText}>Retry Stream</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* CCTV Live Telemetry Overlay with live ticking clock */}
+                <View style={styles.cctvTopBar}>
+                  <View style={styles.recDotRow}>
+                    <View style={[styles.recDot, { backgroundColor: '#EF4444' }]} />
+                    <Text style={styles.recText}>
+                      LIVE • MVIT SMART BAY ({approach.toUpperCase()})
+                    </Text>
+                  </View>
+                  <Text style={styles.cctvClockText}>{liveTime} IST</Text>
                 </View>
-              )
+              </View>
             ) : (
               <View style={styles.simulatedContainer}>
                 {Platform.OS === 'web' ? (

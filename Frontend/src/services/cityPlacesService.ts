@@ -10,7 +10,7 @@ export const PUDUCHERRY_CITY_PLACES: CityPlace[] = [
   // 1. SMART PARKING FACILITIES (WITH CAMERA & LIVE SLOTS)
   {
     id: 'zone-test-mvit',
-    name: 'Test 1 - MVIT Smart Parking',
+    name: 'Test 1 - MVIT Parking',
     category: 'PARKING_SMART',
     streetName: 'Kalitheerthalkuppam, NH-45A Villupuram Main Road',
     area: 'MVIT Campus Gate & Engineering Quad',

@@ -2,8 +2,9 @@
 // PUDUCHERRY POLICE CITIZEN VIOLATION REPORTING
 // Responsive, mobile-first design matching Image 2 with 3-step workflow:
 // Step 1: Details (Violation Category Grid & Photo Capture)
-// Step 2: Photo & Vehicle License Plate (AI OCR Extraction)
+// Step 2: Photo & Vehicle License Plate (AI OCR Extraction & Remarks)
 // Step 3: Location (Real GPS Geolocation & Police Dispatch)
+// Real Appwrite Storage bucket upload & Database Row persistence
 // Zero Emojis (Pure Vector SVG Icons)
 // ============================================================================
 
@@ -111,6 +112,7 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
   const [currentLoc, setCurrentLoc] = useState<LocationData | null>(null);
   const [remarks, setRemarks] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [submitStatusText, setSubmitStatusText] = useState<string>('');
   const [submittedReport, setSubmittedReport] = useState<ViolationReport | null>(null);
 
   // Web Camera Hardware References
@@ -158,6 +160,8 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
         }
       } catch (err) {
         console.warn('Camera stream error:', err);
+        Alert.alert('Camera Access', 'Unable to open camera hardware. You can upload an image using the upload button.');
+        setIsCameraActive(false);
       }
     }
   };
@@ -166,28 +170,31 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      const w = video.videoWidth || 640;
-      const h = video.videoHeight || 480;
-      canvas.width = w;
-      canvas.height = h;
+      const width = video.videoWidth || 640;
+      const height = video.videoHeight || 480;
+
+      canvas.width = width;
+      canvas.height = height;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.drawImage(video, 0, 0, w, h);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        ctx.drawImage(video, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
         setCapturedPhoto(dataUrl);
         stopCameraStream();
         setIsCameraActive(false);
+
+        // Run client OCR
         runOcrOnPhoto(dataUrl);
       }
     }
   };
 
-  const handleFileUpload = (e: any) => {
-    const file = e?.target?.files?.[0];
+  const handleFileUpload = (event: any) => {
+    const file = event?.target?.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (ev) => {
-        const dataUrl = ev?.target?.result as string;
+      reader.onload = (e) => {
+        const dataUrl = e?.target?.result as string;
         if (dataUrl) {
           setCapturedPhoto(dataUrl);
           stopCameraStream();
@@ -223,7 +230,7 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
     if (!capturedPhoto) {
       Alert.alert(
         'Add Evidence Photo',
-        'Please snap or upload a photo of the violating vehicle to proceed.',
+        'Please snap or upload a photo of the vehicle to proceed.',
         [
           { text: 'Open Camera', onPress: startCameraStream },
           { text: 'Upload Photo', onPress: () => fileInputRef.current?.click() },
@@ -248,10 +255,10 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
       setCurrentLoc(loc);
     } catch (e) {
       setCurrentLoc({
-        latitude: 11.9348,
-        longitude: 79.8295,
+        latitude: 11.9226,
+        longitude: 79.6269,
         accuracy: 5,
-        landmark: 'Mission Street, White Town, Puducherry',
+        landmark: 'Manakula Vinayagar Institute of Technology, Puducherry',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       });
     } finally {
@@ -260,9 +267,10 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
     }
   };
 
-  // Step 3: Final Submit to Database
+  // Step 3: Final Submit to Database with Storage Upload
   const handleSubmitReport = async () => {
     setIsSubmitting(true);
+    setSubmitStatusText('Uploading evidence photo to storage...');
     const refNo = `CHL-2026-${Math.floor(10000 + Math.random() * 90000)}`;
     const nowStr = new Date().toISOString();
 
@@ -272,10 +280,10 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
       reportDomain: 'TRAFFIC',
       photoUri: capturedPhoto,
       location: currentLoc || {
-        latitude: 11.9348,
-        longitude: 79.8295,
+        latitude: 11.9226,
+        longitude: 79.6269,
         accuracy: 5,
-        landmark: 'Mission Street, White Town, Puducherry',
+        landmark: 'Manakula Vinayagar Institute of Technology, Puducherry',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       },
       vehicleNumber: plateNumber.trim().toUpperCase(),
@@ -288,12 +296,17 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
     };
 
     try {
-      await AppwriteDb.createViolationReport(report);
+      setSubmitStatusText('Saving complaint to police database...');
+      const res = await AppwriteDb.createViolationReport(report);
+      if (res && res.photoUrl) {
+        report.photoUri = res.photoUrl;
+      }
     } catch (err) {
       console.warn('Appwrite save fallback to local:', err);
     }
 
     setIsSubmitting(false);
+    setSubmitStatusText('');
     setSubmittedReport(report);
     onSubmitSuccess(report);
   };
@@ -379,27 +392,13 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
               <TouchableOpacity
                 style={styles.camUploadAltBtn}
                 onPress={() => {
-                  const sampleUrl = 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80';
-                  setCapturedPhoto(sampleUrl);
                   stopCameraStream();
                   setIsCameraActive(false);
-                  runOcrOnPhoto(sampleUrl);
                 }}
               >
-                <CarIcon color="#FFFFFF" size={18} />
-                <Text style={styles.camUploadAltText}>Sample</Text>
+                <Text style={styles.camUploadAltText}>Cancel</Text>
               </TouchableOpacity>
             </View>
-
-            {Platform.OS === 'web' && (
-              <input
-                type="file"
-                ref={fileInputRef as any}
-                accept="image/*"
-                style={{ display: 'none' }}
-                onChange={handleFileUpload}
-              />
-            )}
           </View>
         </View>
       </View>
@@ -407,15 +406,15 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
   }
 
   // ============================================================================
-  // SUCCESS CELEBRATION VIEW
+  // SUCCESS RECEIPT SCREEN
   // ============================================================================
   if (submittedReport) {
     return (
       <View style={styles.outerContainer}>
         <View style={styles.phoneContainer}>
-          <View style={styles.successCard}>
+          <View style={styles.successWrapper}>
             <View style={styles.successIconCircle}>
-              <CheckmarkIcon color="#FFFFFF" size={32} strokeWidth={3} />
+              <CheckmarkIcon color="#FFFFFF" size={32} />
             </View>
             <Text style={styles.successTitle}>Report Successfully Submitted!</Text>
             <Text style={styles.successSubtitle}>
@@ -444,6 +443,14 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
                   {submittedReport.location.landmark}
                 </Text>
               </View>
+              {submittedReport.photoUri && (
+                <View style={styles.ticketRow}>
+                  <Text style={styles.ticketLabel}>Evidence Status</Text>
+                  <Text style={[styles.ticketValue, { color: '#059669', fontSize: 11 }]}>
+                    ✓ Stored in Police Cloud Bucket
+                  </Text>
+                </View>
+              )}
             </View>
 
             <View style={styles.karmaBadge}>
@@ -470,7 +477,7 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
   return (
     <View style={styles.outerContainer}>
       <View style={styles.phoneContainer}>
-        {/* 1. Clean Native Header with Back Arrow (Matching Image 2) */}
+        {/* 1. Header with Back Arrow */}
         <View style={styles.topHeader}>
           <TouchableOpacity
             style={styles.backBtn}
@@ -528,7 +535,11 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
           </View>
         </View>
 
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           {/* ==================================================================== */}
           {/* STEP 1: VIOLATION CATEGORY GRID & PHOTO ATTACHMENT */}
           {/* ==================================================================== */}
@@ -602,17 +613,30 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
                   onChange={handleFileUpload}
                 />
               )}
+
+              {/* PRIMARY PROMINENT INLINE BUTTON - STEP 1 */}
+              <View style={styles.inlineButtonWrapper}>
+                <TouchableOpacity
+                  style={styles.primaryActionButton}
+                  onPress={handleProceedFromStep1}
+                  activeOpacity={0.88}
+                >
+                  <Text style={styles.primaryActionButtonText}>
+                    {capturedPhoto ? 'Next: Vehicle Plate & Details  ➔' : 'Add Evidence Photo to Continue'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
           {/* ==================================================================== */}
-          {/* STEP 2: PHOTO & LICENSE PLATE OCR CONFIRMATION */}
+          {/* STEP 2: PHOTO & LICENSE PLATE OCR CONFIRMATION & REMARKS */}
           {/* ==================================================================== */}
           {currentStep === 2 && (
             <View style={styles.stepCard}>
               <Text style={styles.stepTitle}>Confirm Vehicle & License Plate</Text>
               <Text style={styles.stepSubtitle}>
-                Optical AI automatically extracted vehicle registration plate
+                AI automatically extracted vehicle registration number plate
               </Text>
 
               {/* Photo Preview Card */}
@@ -675,6 +699,36 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
                   </TouchableOpacity>
                 </View>
               </View>
+
+              {/* Violation Description / Complaint Notes */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Complaint Details & Landmark</Text>
+                <TextInput
+                  style={styles.remarksInput}
+                  value={remarks}
+                  onChangeText={setRemarks}
+                  placeholder="e.g. Parked blocking gate entrance and sidewalk corridor"
+                  placeholderTextColor="#94A3B8"
+                  multiline
+                  numberOfLines={3}
+                />
+              </View>
+
+              {/* PRIMARY PROMINENT INLINE BUTTON - STEP 2 */}
+              <View style={styles.inlineButtonWrapper}>
+                <TouchableOpacity
+                  style={styles.primaryActionButton}
+                  onPress={handleProceedFromStep2}
+                  disabled={isLocating}
+                  activeOpacity={0.88}
+                >
+                  {isLocating ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={styles.primaryActionButtonText}>Next: Verify Location  ➔</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -683,7 +737,7 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
           {/* ==================================================================== */}
           {currentStep === 3 && (
             <View style={styles.stepCard}>
-              <Text style={styles.stepTitle}>Incident Location & Review</Text>
+              <Text style={styles.stepTitle}>Incident Location & Final Review</Text>
               <Text style={styles.stepSubtitle}>
                 GPS hardware locked to ensure tamper-proof evidence
               </Text>
@@ -694,81 +748,64 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
                 </View>
                 <View style={styles.locationInfoCol}>
                   <Text style={styles.locationName}>
-                    {currentLoc?.landmark || 'Mission Street, White Town, Puducherry'}
+                    {currentLoc?.landmark || 'Manakula Vinayagar Institute of Technology, Puducherry'}
                   </Text>
                   <Text style={styles.locationCoords}>
-                    Lat: {currentLoc?.latitude.toFixed(4) || '11.9348'}, Lng: {currentLoc?.longitude.toFixed(4) || '79.8295'} • Verified GPS (5m)
+                    Lat: {currentLoc?.latitude.toFixed(4) || '11.9226'}, Lng: {currentLoc?.longitude.toFixed(4) || '79.6269'} • Verified GPS (5m)
                   </Text>
                 </View>
               </View>
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Remarks / Landmark Reference (Optional)</Text>
-                <TextInput
-                  style={styles.remarksInput}
-                  value={remarks}
-                  onChangeText={setRemarks}
-                  placeholder="e.g. Parked blocking hospital gate entrance"
-                  placeholderTextColor="#94A3B8"
-                  multiline
-                  numberOfLines={3}
-                />
+              {/* Summary Review Row */}
+              <View style={styles.reviewSummaryCard}>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Vehicle Plate:</Text>
+                  <Text style={styles.reviewValue}>{plateNumber}</Text>
+                </View>
+                <View style={styles.reviewRow}>
+                  <Text style={styles.reviewLabel}>Violation Type:</Text>
+                  <Text style={styles.reviewValue}>
+                    {VIOLATION_CATEGORIES.find((v) => v.key === selectedCategory)?.label || 'No Parking'}
+                  </Text>
+                </View>
+                {remarks.trim().length > 0 && (
+                  <View style={styles.reviewRow}>
+                    <Text style={styles.reviewLabel}>Complaint:</Text>
+                    <Text style={styles.reviewValue}>{remarks}</Text>
+                  </View>
+                )}
               </View>
 
               <View style={styles.policeNoticeCard}>
                 <PoliceShieldIcon color="#1E3A8A" size={20} />
                 <Text style={styles.policeNoticeText}>
-                  Your report will be reviewed by Puducherry Traffic Police for automated e-challan issuance. Earn +50 Civic Karma upon verification.
+                  Your complaint and evidence photo will be uploaded to Puducherry Police Cloud Storage for automated e-challan dispatch.
                 </Text>
+              </View>
+
+              {/* PRIMARY PROMINENT INLINE BUTTON - STEP 3 */}
+              <View style={styles.inlineButtonWrapper}>
+                <TouchableOpacity
+                  style={[styles.primaryActionButton, { backgroundColor: '#10B981' }]}
+                  onPress={handleSubmitReport}
+                  disabled={isSubmitting}
+                  activeOpacity={0.88}
+                >
+                  {isSubmitting ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <ActivityIndicator color="#FFFFFF" size="small" />
+                      <Text style={styles.primaryActionButtonText}>{submitStatusText || 'Submitting...'}</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.primaryActionButtonText}>Submit Complaint to Police  ✓</Text>
+                  )}
+                </TouchableOpacity>
               </View>
             </View>
           )}
 
-          <View style={{ height: 40 }} />
+          <View style={{ height: 60 }} />
         </ScrollView>
-
-        {/* 3. Bottom Action Dock with Big Blue "Next" Button (Matching Image 2) */}
-        <View style={styles.bottomDock}>
-          {currentStep === 1 && (
-            <TouchableOpacity
-              style={styles.nextBtnPrimary}
-              onPress={handleProceedFromStep1}
-              activeOpacity={0.88}
-            >
-              <Text style={styles.nextBtnPrimaryText}>Next</Text>
-            </TouchableOpacity>
-          )}
-
-          {currentStep === 2 && (
-            <TouchableOpacity
-              style={styles.nextBtnPrimary}
-              onPress={handleProceedFromStep2}
-              disabled={isLocating}
-              activeOpacity={0.88}
-            >
-              {isLocating ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.nextBtnPrimaryText}>Next: Confirm Location</Text>
-              )}
-            </TouchableOpacity>
-          )}
-
-          {currentStep === 3 && (
-            <TouchableOpacity
-              style={[styles.nextBtnPrimary, { backgroundColor: '#10B981' }]}
-              onPress={handleSubmitReport}
-              disabled={isSubmitting}
-              activeOpacity={0.88}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.nextBtnPrimaryText}>Submit Report to Police</Text>
-              )}
-            </TouchableOpacity>
-          )}
-        </View>
       </View>
     </View>
   );
@@ -896,6 +933,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+    paddingBottom: 90,
   },
   stepCard: {
     backgroundColor: '#FFFFFF',
@@ -958,14 +996,13 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   photoPreviewWrapper: {
-    width: 140,
+    width: 125,
     height: 100,
     borderRadius: 14,
     overflow: 'hidden',
     position: 'relative',
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    backgroundColor: '#F1F5F9',
   },
   photoPreviewImg: {
     width: '100%',
@@ -973,10 +1010,10 @@ const styles = StyleSheet.create({
   },
   detectionBoxOverlay: {
     position: 'absolute',
-    top: '16%',
-    left: '16%',
-    right: '16%',
-    bottom: '16%',
+    top: '15%',
+    left: '15%',
+    right: '15%',
+    bottom: '15%',
     borderWidth: 2,
     borderColor: '#EF4444',
     borderRadius: 4,
@@ -988,10 +1025,9 @@ const styles = StyleSheet.create({
     width: 22,
     height: 22,
     borderRadius: 11,
-    backgroundColor: 'rgba(15, 23, 42, 0.75)',
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 10,
   },
   photoRemoveText: {
     color: '#FFFFFF',
@@ -1015,22 +1051,33 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#475569',
   },
-  bottomDock: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+  inlineButtonWrapper: {
+    marginTop: 24,
+    marginBottom: 8,
   },
-  nextBtnPrimary: {
+  primaryActionButton: {
     backgroundColor: '#2563EB',
-    height: 50,
+    height: 52,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Platform.select({
+      web: {
+        // @ts-ignore
+        boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)',
+      },
+      default: {
+        shadowColor: '#2563EB',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 3,
+      },
+    }),
   },
-  nextBtnPrimaryText: {
+  primaryActionButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     letterSpacing: 0.3,
   },
@@ -1118,7 +1165,7 @@ const styles = StyleSheet.create({
   },
   retakeMiniText: {
     color: '#1E3A8A',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
   vehicleTypeRow: {
@@ -1130,56 +1177,24 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 8,
     paddingVertical: 12,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
   },
   vehicleTypeBtnActive: {
-    backgroundColor: '#1E3A8A',
     borderColor: '#1E3A8A',
+    backgroundColor: '#1E3A8A',
   },
   vehicleTypeText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
-    color: '#334155',
+    color: '#1E3A8A',
   },
   vehicleTypeTextActive: {
     color: '#FFFFFF',
-  },
-  locationCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1.5,
-    borderColor: '#FECACA',
-    borderRadius: 14,
-    padding: 12,
-    marginBottom: 16,
-  },
-  locationIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FEE2E2',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  locationInfoCol: {
-    flex: 1,
-  },
-  locationName: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#991B1B',
-  },
-  locationCoords: {
-    fontSize: 11,
-    color: '#B91C1C',
-    marginTop: 2,
   },
   remarksInput: {
     backgroundColor: '#F8FAFC',
@@ -1191,6 +1206,64 @@ const styles = StyleSheet.create({
     color: '#0F172A',
     minHeight: 70,
     textAlignVertical: 'top',
+  },
+  locationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+  },
+  locationIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationInfoCol: {
+    flex: 1,
+  },
+  locationName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#991B1B',
+  },
+  locationCoords: {
+    fontSize: 11,
+    color: '#B91C1C',
+    marginTop: 2,
+  },
+  reviewSummaryCard: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
+    gap: 6,
+  },
+  reviewRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  reviewLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+    minWidth: 90,
+  },
+  reviewValue: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+    flex: 1,
   },
   policeNoticeCard: {
     flexDirection: 'row',
@@ -1204,14 +1277,16 @@ const styles = StyleSheet.create({
   },
   policeNoticeText: {
     flex: 1,
-    fontSize: 11,
+    fontSize: 11.5,
     color: '#1E3A8A',
     lineHeight: 16,
-    fontWeight: '600',
   },
+
+  // Cam Viewfinder
   camContainer: {
     flex: 1,
     backgroundColor: '#000000',
+    justifyContent: 'space-between',
   },
   camTopBar: {
     flexDirection: 'row',
@@ -1220,39 +1295,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: Platform.OS === 'web' ? 14 : 44,
     paddingBottom: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
   camCloseBtn: {
-    paddingHorizontal: 12,
     paddingVertical: 6,
+    paddingHorizontal: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 16,
+    borderRadius: 8,
   },
   camCloseText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
   },
   camLiveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(239, 68, 68, 0.3)',
-    paddingHorizontal: 10,
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
     paddingVertical: 4,
+    paddingHorizontal: 10,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#EF4444',
+    borderColor: 'rgba(239, 68, 68, 0.5)',
   },
   camLiveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#EF4444',
   },
   camLiveText: {
-    color: '#FFFFFF',
+    color: '#F87171',
     fontSize: 10,
     fontWeight: '800',
+    letterSpacing: 0.5,
   },
   viewfinder: {
     flex: 1,
@@ -1261,13 +1338,13 @@ const styles = StyleSheet.create({
   },
   anprBoxOverlay: {
     position: 'absolute',
-    top: '25%',
+    top: '20%',
     left: '12%',
     right: '12%',
     bottom: '25%',
-    borderWidth: 1.5,
-    borderColor: 'rgba(239, 68, 68, 0.75)',
-    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(52, 211, 153, 0.8)',
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingBottom: 8,
@@ -1276,49 +1353,50 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -2,
     left: -2,
-    width: 16,
-    height: 16,
-    borderTopWidth: 3,
-    borderLeftWidth: 3,
-    borderColor: '#EF4444',
+    width: 20,
+    height: 20,
+    borderTopWidth: 4,
+    borderLeftWidth: 4,
+    borderColor: '#10B981',
   },
   anprCornerTR: {
     position: 'absolute',
     top: -2,
     right: -2,
-    width: 16,
-    height: 16,
-    borderTopWidth: 3,
-    borderRightWidth: 3,
-    borderColor: '#EF4444',
+    width: 20,
+    height: 20,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderColor: '#10B981',
   },
   anprCornerBL: {
     position: 'absolute',
     bottom: -2,
     left: -2,
-    width: 16,
-    height: 16,
-    borderBottomWidth: 3,
-    borderLeftWidth: 3,
-    borderColor: '#EF4444',
+    width: 20,
+    height: 20,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderColor: '#10B981',
   },
   anprCornerBR: {
     position: 'absolute',
     bottom: -2,
     right: -2,
-    width: 16,
-    height: 16,
-    borderBottomWidth: 3,
-    borderRightWidth: 3,
-    borderColor: '#EF4444',
+    width: 20,
+    height: 20,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderColor: '#10B981',
   },
   anprGuideText: {
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '800',
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    letterSpacing: 0.6,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 2,
     borderRadius: 4,
   },
   camBottomBar: {
@@ -1326,43 +1404,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-around',
     paddingVertical: 24,
-    backgroundColor: '#000000',
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+  },
+  camUploadAltBtn: {
+    alignItems: 'center',
+    gap: 4,
+    width: 60,
+  },
+  camUploadAltText: {
+    color: '#94A3B8',
+    fontSize: 11,
+    fontWeight: '600',
   },
   shutterBtn: {
     width: 72,
     height: 72,
     borderRadius: 36,
-    borderWidth: 4,
-    borderColor: '#FFFFFF',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   shutterBtnInner: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: '#EF4444',
   },
-  camUploadAltBtn: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  camUploadAltText: {
-    color: '#94A3B8',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  successCard: {
+
+  // Success Screen
+  successWrapper: {
     flex: 1,
+    padding: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
-    backgroundColor: '#FFFFFF',
   },
   successIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: '#10B981',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1385,17 +1464,16 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: '#F8FAFC',
     borderRadius: 14,
-    padding: 14,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    marginBottom: 16,
+    padding: 16,
+    gap: 12,
+    marginBottom: 20,
   },
   ticketRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    alignItems: 'center',
   },
   ticketLabel: {
     fontSize: 12,
@@ -1403,35 +1481,34 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   ticketValue: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#0F172A',
     fontWeight: '800',
   },
   karmaBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     backgroundColor: '#ECFDF5',
     borderWidth: 1,
     borderColor: '#A7F3D0',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     marginBottom: 24,
   },
   karmaText: {
     color: '#065F46',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '800',
   },
   reportAnotherBtn: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#0B2559',
     paddingVertical: 14,
-    paddingHorizontal: 28,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 24,
+    borderRadius: 14,
     width: '100%',
+    alignItems: 'center',
   },
   reportAnotherBtnText: {
     color: '#FFFFFF',

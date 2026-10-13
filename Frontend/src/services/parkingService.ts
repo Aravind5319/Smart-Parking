@@ -50,7 +50,7 @@ export interface TripPlanSuggestion {
 export const REAL_PUDUCHERRY_ZONES: ParkingZone[] = [
   {
     id: 'zone-test-mvit',
-    name: 'Test 1 - MVIT Smart Parking',
+    name: 'Test 1 - MVIT Parking',
     streetName: 'Kalitheerthalkuppam, NH-45A Villupuram Main Road',
     area: 'MVIT Campus Gate & Engineering Quad',
     coordinates: { latitude: 11.9226, longitude: 79.6269 },
