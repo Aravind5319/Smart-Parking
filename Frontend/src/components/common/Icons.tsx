@@ -756,6 +756,35 @@ export const SosIcon: React.FC<IconProps> = ({ color = '#DC2626', size = 18, str
   return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
 };
 
+// 55. Speedometer / Over Speed Icon
+export const SpeedometerIcon: React.FC<IconProps> = ({ color = '#DC2626', size = 18, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+        <path d="M6 12h.01M18 12h.01" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+// 56. Wrong Way / Wrong Side Icon
+export const WrongWayIcon: React.FC<IconProps> = ({ color = '#DC2626', size = 18, strokeWidth = 2 }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
+        <circle cx="12" cy="12" r="10" />
+        <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+        <path d="M9 12h6" />
+      </svg>
+    );
+  }
+  return <View style={[styles.fallbackBox, { width: size, height: size, borderColor: color }]} />;
+};
+
+
 const styles = StyleSheet.create({
   fallbackBox: {
     borderWidth: 1.5,

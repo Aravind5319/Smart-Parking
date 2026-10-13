@@ -43,6 +43,26 @@ const BUCKET_PHOTOS = 'violation_photos';
 
 const REAL_PUDUCHERRY_ZONES = [
   {
+    zoneId: 'zone-test-mvit',
+    name: 'Test 1 - MVIT Smart Parking',
+    streetName: 'Kalitheerthalkuppam, NH-45A Villupuram Main Road',
+    area: 'MVIT Campus Gate & Engineering Quad',
+    latitude: 11.9226,
+    longitude: 79.6269,
+    type: 'PARKING_GREEN',
+    category: 'GOVT_MUNICIPAL',
+    totalSlots: 50,
+    occupiedSlots: 15,
+    hourlyRate: 'FREE (Campus Smart Gate)',
+    walkingTimeMin: 1,
+    distanceKm: 0.2,
+    sensorType: 'Hardware Trueview Wi-Fi / Cloudflare Stream (Active Cam)',
+    sensorStatus: 'Active Live Hardware Camera Stream',
+    trafficLevel: 'SMOOTH',
+    trafficDelayMin: 0,
+    imageUrl: 'https://mvit.edu.in/wp-content/images/photo/8.jpg',
+  },
+  {
     zoneId: 'zone-mission-st',
     name: 'Mission Street Authorized Kerb Parking',
     streetName: 'Mission Street',

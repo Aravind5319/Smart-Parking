@@ -70,6 +70,8 @@ export type ViolationCategory =
   | 'GATE_BLOCKED'
   | 'BUS_STOP_OBSTRUCTION'
   | 'WRONG_SIDE'
+  | 'SIGNAL_JUMP'
+  | 'OVER_SPEED'
   // Civic & Lost / Found Categories
   | 'FOUND_PURSE_VALUABLE'
   | 'FOUND_DOCUMENTS'

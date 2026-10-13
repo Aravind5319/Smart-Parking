@@ -20,6 +20,7 @@ import { AppwriteDb } from '../../services/appwriteDb';
 import { GoogleSearchHeader, CategoryFilterType } from '../../components/map/GoogleSearchHeader';
 import { GoogleMapView } from '../../components/map/GoogleMapView';
 import { SwipablePlacesCarousel } from '../../components/map/SwipablePlacesCarousel';
+import { NearbySlideUpSheet } from '../../components/map/NearbySlideUpSheet';
 import { TurnByTurnNavigationHUD } from '../../components/map/TurnByTurnNavigationHUD';
 import { PlaceDetailsModal } from '../../components/map/PlaceDetailsModal';
 import { EmergencyAssistanceModal } from '../../components/emergency/EmergencyAssistanceModal';
@@ -203,9 +204,9 @@ export const FindParkingScreen: React.FC = () => {
         />
       )}
 
-      {/* 4. Swipable Horizontal Cards Carousel (Hidden while in Navigation HUD) */}
+      {/* 4. Slide-Up Nearby Sheet & Explore Puducherry Peek Bar (Matching Image 3 & 4) */}
       {!navigationSession && (
-        <SwipablePlacesCarousel
+        <NearbySlideUpSheet
           places={filteredPlaces}
           selectedPlaceId={selectedPlace?.id}
           onSelectPlace={(place) => {
@@ -219,6 +220,16 @@ export const FindParkingScreen: React.FC = () => {
           onOpenDetails={(place) => {
             setSelectedPlace(place);
             setDetailsModalVisible(true);
+          }}
+          selectedCategory={selectedCategory}
+          onSelectCategory={(cat) => {
+            setSelectedCategory(cat);
+            if (cat === 'EMERGENCY') {
+              setEmergencyModalVisible(true);
+              return;
+            }
+            const match = enrichedPlaces.find((p) => cat === 'ALL' || p.category === cat);
+            if (match) setSelectedPlace(match);
           }}
         />
       )}

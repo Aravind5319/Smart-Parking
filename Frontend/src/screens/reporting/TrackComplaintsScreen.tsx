@@ -83,7 +83,7 @@ export const TrackComplaintsScreen: React.FC<TrackComplaintsScreenProps> = ({
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       {/* Quick Access Action Button at the top */}
       <TouchableOpacity style={styles.newReportBtnTop} onPress={onNavigateToReport} activeOpacity={0.8}>
-        <Text style={styles.newReportBtnText}>+ Report Traffic Violation or Lost/Found Item</Text>
+        <Text style={styles.newReportBtnText}>+ Report Traffic Violation</Text>
       </TouchableOpacity>
 
       <Text style={styles.sectionHeader}>Your Submitted Complaints ({tickets.length})</Text>

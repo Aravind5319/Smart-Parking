@@ -101,9 +101,74 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
 
   const videoStreamUrl = `${activeBaseUrl}/video_feed?mode=${approach}&t=${streamKey}`;
 
-  // Poll detection status & gate log
+  // Identify if this zone is Test 1 - MVIT Parking (Live Hardware Cam) or other zones (Dummy Telemetry)
+  const isHardwareZone = Boolean(
+    zone &&
+      (zone.id === 'zone-test-mvit' ||
+        zone.name.toLowerCase().includes('mvit') ||
+        zone.name.toLowerCase().includes('test 1'))
+  );
+
+  // Poll detection status & gate log for hardware cam, or set simulated telemetry for other zones
   useEffect(() => {
     if (!visible) return;
+
+    if (!isHardwareZone) {
+      // Provide realistic dummy telemetry for other parking zones
+      const tot = zone?.totalSlots || 40;
+      const fill = zone?.occupiedSlots || 15;
+      setGateStats({
+        totalCapacity: tot,
+        currentlyFilled: fill,
+        emptySpace: Math.max(0, tot - fill),
+        enteredToday: 34,
+        exitedToday: 19,
+      });
+      setFenceStats({
+        totalSections: 4,
+        availableCarSpaces: Math.max(1, Math.round((tot - fill) * 0.4)),
+        availableBikeSpaces: Math.max(2, Math.round((tot - fill) * 0.6)),
+        occupiedSections: 2,
+        statusText: `${Math.max(0, tot - fill)} bays available (Simulated CCTV)`,
+        fps: 25.0,
+      });
+      setGateRecords([
+        {
+          id: 'dummy-rec-1',
+          filename: '',
+          imageUrl: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=400&q=80',
+          vehicleName: 'Hyundai Creta',
+          vehicleType: '4-Wheeler',
+          plateNumber: 'PY 01 CB 4521',
+          direction: 'IN',
+          timestamp: '11:42 AM',
+          date: 'Today',
+        },
+        {
+          id: 'dummy-rec-2',
+          filename: '',
+          imageUrl: 'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?auto=format&fit=crop&w=400&q=80',
+          vehicleName: 'Honda City',
+          vehicleType: '4-Wheeler',
+          plateNumber: 'TN 07 DK 9021',
+          direction: 'OUT',
+          timestamp: '11:28 AM',
+          date: 'Today',
+        },
+        {
+          id: 'dummy-rec-3',
+          filename: '',
+          imageUrl: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=400&q=80',
+          vehicleName: 'Royal Enfield Classic',
+          vehicleType: '2-Wheeler',
+          plateNumber: 'PY 05 M 3389',
+          direction: 'IN',
+          timestamp: '10:55 AM',
+          date: 'Today',
+        },
+      ]);
+      return;
+    }
 
     let isMounted = true;
     const fetchStats = async () => {
@@ -115,6 +180,7 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
             setIsLiveCamera(Boolean(data.is_real_camera));
             setIsTunnelConnected(true);
             setStreamError(false);
+
 
             if (data.fence_stats) {
               setFenceStats({
@@ -273,33 +339,69 @@ export const ParkingCameraModal: React.FC<ParkingCameraModalProps> = ({
 
           {/* 16:9 Responsive Video Monitor Card */}
           <View style={styles.videoCard}>
-            {Platform.OS === 'web' && !streamError ? (
-              <img
-                key={`stream-${approach}-${streamKey}`}
-                src={videoStreamUrl}
-                alt="Live Parking Video Feed"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                  backgroundColor: '#000000',
-                  display: 'block',
-                }}
-                onError={() => setStreamError(true)}
-              />
-            ) : (
-              <View style={styles.fallbackBox}>
-                <Text style={styles.fallbackTitle}>Camera Stream Connecting...</Text>
-                <Text style={styles.fallbackSub}>Connecting to Cloudflare Gateway</Text>
-                <TouchableOpacity
-                  style={styles.retryBtn}
-                  onPress={() => {
-                    setStreamError(false);
-                    setStreamKey(Date.now());
+            {isHardwareZone ? (
+              Platform.OS === 'web' && !streamError ? (
+                <img
+                  key={`stream-${approach}-${streamKey}`}
+                  src={videoStreamUrl}
+                  alt="Live Parking Video Feed"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    backgroundColor: '#000000',
+                    display: 'block',
                   }}
-                >
-                  <Text style={styles.retryBtnText}>Retry Stream</Text>
-                </TouchableOpacity>
+                  onError={() => setStreamError(true)}
+                />
+              ) : (
+                <View style={styles.fallbackBox}>
+                  <Text style={styles.fallbackTitle}>Camera Stream Connecting...</Text>
+                  <Text style={styles.fallbackSub}>Connecting to Cloudflare Gateway</Text>
+                  <TouchableOpacity
+                    style={styles.retryBtn}
+                    onPress={() => {
+                      setStreamError(false);
+                      setStreamKey(Date.now());
+                    }}
+                  >
+                    <Text style={styles.retryBtnText}>Retry Stream</Text>
+                  </TouchableOpacity>
+                </View>
+              )
+            ) : (
+              <View style={styles.simulatedContainer}>
+                {Platform.OS === 'web' ? (
+                  <img
+                    src={zone?.imageUrl || 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80'}
+                    alt="Simulated CCTV Monitor"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      filter: 'contrast(1.05) brightness(0.92)',
+                    }}
+                  />
+                ) : (
+                  <Image
+                    source={{ uri: zone?.imageUrl || 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80' }}
+                    style={StyleSheet.absoluteFillObject}
+                    resizeMode="cover"
+                  />
+                )}
+                {/* CCTV Overlays */}
+                <View style={styles.cctvTopBar}>
+                  <View style={styles.recDotRow}>
+                    <View style={styles.recDot} />
+                    <Text style={styles.recText}>REC • SIMULATED CCTV TELEMETRY</Text>
+                  </View>
+                  <Text style={styles.cctvClockText}>CH-02 • 25 FPS</Text>
+                </View>
+                <View style={styles.cctvNoticeCard}>
+                  <Text style={styles.cctvNoticeText}>
+                    Hardware camera is deployed at Test 1 - MVIT Parking. Displaying simulated sensor telemetry for this facility.
+                  </Text>
+                </View>
               </View>
             )}
           </View>
@@ -1265,4 +1367,64 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 13,
   },
+  simulatedContainer: {
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+    backgroundColor: '#000000',
+    overflow: 'hidden',
+  },
+  cctvTopBar: {
+    position: 'absolute',
+    top: 10,
+    left: 12,
+    right: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  recDotRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  recDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+  },
+  recText: {
+    color: '#FCA5A5',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  cctvClockText: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  cctvNoticeCard: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    borderRadius: 6,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  cctvNoticeText: {
+    color: '#E2E8F0',
+    fontSize: 10,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
 });
+
