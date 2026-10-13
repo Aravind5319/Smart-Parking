@@ -1,6 +1,6 @@
 // ============================================================================
 // PUDUCHERRY POLICE CITIZEN VIOLATION REPORTING
-// Clean modern design matching Image 2 with 3-step workflow:
+// Responsive, mobile-first design matching Image 2 with 3-step workflow:
 // Step 1: Details (Violation Category Grid & Photo Capture)
 // Step 2: Photo & Vehicle License Plate (AI OCR Extraction)
 // Step 3: Location (Real GPS Geolocation & Police Dispatch)
@@ -61,32 +61,32 @@ const VIOLATION_CATEGORIES: ViolationOptionItem[] = [
   {
     key: 'NO_PARKING_ZONE',
     label: 'No Parking',
-    icon: (color) => <ProhibitedIcon color={color} size={22} strokeWidth={2.2} />,
+    icon: (color) => <ProhibitedIcon color={color} size={20} strokeWidth={2.2} />,
   },
   {
     key: 'WRONG_SIDE',
     label: 'Wrong Side',
-    icon: (color) => <WrongWayIcon color={color} size={22} strokeWidth={2.2} />,
+    icon: (color) => <WrongWayIcon color={color} size={20} strokeWidth={2.2} />,
   },
   {
     key: 'FOOTPATH_BLOCKED',
     label: 'Blocking Footpath',
-    icon: (color) => <PedestrianIcon color={color} size={22} strokeWidth={2.2} />,
+    icon: (color) => <PedestrianIcon color={color} size={20} strokeWidth={2.2} />,
   },
   {
     key: 'SIGNAL_JUMP',
     label: 'Signal Jump',
-    icon: (color) => <TrafficLightIcon color={color} size={22} strokeWidth={2.2} />,
+    icon: (color) => <TrafficLightIcon color={color} size={20} strokeWidth={2.2} />,
   },
   {
     key: 'OVER_SPEED',
     label: 'Over Speed',
-    icon: (color) => <SpeedometerIcon color={color} size={22} strokeWidth={2.2} />,
+    icon: (color) => <SpeedometerIcon color={color} size={20} strokeWidth={2.2} />,
   },
   {
     key: 'OTHERS',
     label: 'Other',
-    icon: (color) => <FileTextIcon color={color} size={22} strokeWidth={2.2} />,
+    icon: (color) => <FileTextIcon color={color} size={20} strokeWidth={2.2} />,
   },
 ];
 
@@ -207,7 +207,6 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
         setPlateNumber(res.plateNumber);
         setOcrConfidence(res.confidence || 92);
       } else {
-        // Fallback default sample plate if OCR cannot detect
         setPlateNumber('PY 01 CA 1234');
         setOcrConfidence(85);
       }
@@ -248,7 +247,6 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
       const loc = await requestRealLocation();
       setCurrentLoc(loc);
     } catch (e) {
-      // Offline fallback: Center at Puducherry Mission Street
       setCurrentLoc({
         latitude: 11.9348,
         longitude: 79.8295,
@@ -300,7 +298,6 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
     onSubmitSuccess(report);
   };
 
-  // Reset form to report another violation
   const handleResetForm = () => {
     setCurrentStep(1);
     setCapturedPhoto(null);
@@ -315,293 +312,85 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
   // ============================================================================
   if (isCameraActive) {
     return (
-      <View style={styles.camContainer}>
-        {/* Hidden Canvas for High-Resolution Capture */}
-        <canvas ref={canvasRef as any} style={{ display: 'none' }} />
+      <View style={styles.outerContainer}>
+        <View style={[styles.phoneContainer, { backgroundColor: '#000000' }]}>
+          <View style={styles.camContainer}>
+            <canvas ref={canvasRef as any} style={{ display: 'none' }} />
 
-        {/* Top Camera Bar */}
-        <View style={styles.camTopBar}>
-          <TouchableOpacity
-            style={styles.camCloseBtn}
-            onPress={() => {
-              stopCameraStream();
-              setIsCameraActive(false);
-            }}
-          >
-            <Text style={styles.camCloseText}>✕ Close</Text>
-          </TouchableOpacity>
-          <View style={styles.camLiveBadge}>
-            <View style={styles.camLiveDot} />
-            <Text style={styles.camLiveText}>POLICE EVIDENCE CAM</Text>
-          </View>
-        </View>
-
-        {/* Viewfinder Video Area */}
-        <View style={styles.viewfinder}>
-          <video
-            ref={(node) => {
-              videoRef.current = node;
-              if (node && mediaStreamRef.current) {
-                node.srcObject = mediaStreamRef.current;
-                node.muted = true;
-                node.playsInline = true;
-                node.play().catch(() => {});
-              }
-            }}
-            autoPlay
-            playsInline
-            muted
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
-
-          {/* ANPR Vehicle Detection Guide Box Overlay */}
-          <View style={styles.anprBoxOverlay}>
-            <View style={styles.anprCornerTL} />
-            <View style={styles.anprCornerTR} />
-            <View style={styles.anprCornerBL} />
-            <View style={styles.anprCornerBR} />
-            <Text style={styles.anprGuideText}>ALIGN VEHICLE & LICENSE PLATE</Text>
-          </View>
-        </View>
-
-        {/* Bottom Shutter Controls */}
-        <View style={styles.camBottomBar}>
-          <TouchableOpacity
-            style={styles.camUploadAltBtn}
-            onPress={() => fileInputRef.current?.click()}
-          >
-            <UploadIcon color="#FFFFFF" size={18} />
-            <Text style={styles.camUploadAltText}>Upload</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.shutterBtn}
-            onPress={handleCaptureSnapshot}
-            activeOpacity={0.8}
-          >
-            <View style={styles.shutterBtnInner} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.camUploadAltBtn}
-            onPress={() => {
-              // Sample Demo Car photo for testing
-              const sampleUrl = 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80';
-              setCapturedPhoto(sampleUrl);
-              stopCameraStream();
-              setIsCameraActive(false);
-              runOcrOnPhoto(sampleUrl);
-            }}
-          >
-            <CarIcon color="#FFFFFF" size={18} />
-            <Text style={styles.camUploadAltText}>Sample</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Hidden file input */}
-        {Platform.OS === 'web' && (
-          <input
-            type="file"
-            ref={fileInputRef as any}
-            accept="image/*"
-            style={{ display: 'none' }}
-            onChange={handleFileUpload}
-          />
-        )}
-      </View>
-    );
-  }
-
-  // ============================================================================
-  // SUCCESS CELEBRATION VIEW
-  // ============================================================================
-  if (submittedReport) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.successCard}>
-          <View style={styles.successIconCircle}>
-            <CheckmarkIcon color="#FFFFFF" size={32} strokeWidth={3} />
-          </View>
-          <Text style={styles.successTitle}>Report Successfully Submitted!</Text>
-          <Text style={styles.successSubtitle}>
-            Dispatched to Puducherry Traffic Police Command Center
-          </Text>
-
-          <View style={styles.ticketDetailsBox}>
-            <View style={styles.ticketRow}>
-              <Text style={styles.ticketLabel}>Reference ID</Text>
-              <Text style={styles.ticketValue}>{submittedReport.referenceNo}</Text>
-            </View>
-            <View style={styles.ticketRow}>
-              <Text style={styles.ticketLabel}>Vehicle Plate</Text>
-              <Text style={styles.ticketValue}>{submittedReport.vehicleNumber}</Text>
-            </View>
-            <View style={styles.ticketRow}>
-              <Text style={styles.ticketLabel}>Violation Type</Text>
-              <Text style={styles.ticketValue}>
-                {VIOLATION_CATEGORIES.find((v) => v.key === submittedReport.violationType)?.label ||
-                  'No Parking'}
-              </Text>
-            </View>
-            <View style={styles.ticketRow}>
-              <Text style={styles.ticketLabel}>Location</Text>
-              <Text style={styles.ticketValue} numberOfLines={1}>
-                {submittedReport.location.landmark}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.karmaBadge}>
-            <PoliceShieldIcon color="#10B981" size={18} />
-            <Text style={styles.karmaText}>+50 Civic Karma Points Awarded</Text>
-          </View>
-
-          <TouchableOpacity
-            style={styles.reportAnotherBtn}
-            onPress={handleResetForm}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.reportAnotherBtnText}>Report Another Violation</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
-  // ============================================================================
-  // MAIN MULTI-STEP REPORT WORKFLOW (MATCHING IMAGE 2)
-  // ============================================================================
-  return (
-    <View style={styles.container}>
-      {/* 1. Top Header with Back Arrow (Matching Image 2) */}
-      <View style={styles.topHeader}>
-        <TouchableOpacity
-          style={styles.backBtn}
-          onPress={() => {
-            if (currentStep > 1) {
-              setCurrentStep((prev) => (prev - 1) as StepNumber);
-            }
-          }}
-          disabled={currentStep === 1}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.backArrowText, currentStep === 1 && { opacity: 0.3 }]}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Report a Violation</Text>
-        <View style={{ width: 32 }} />
-      </View>
-
-      {/* 2. Three-Step Stepper Bar (1 Details ── 2 Photo ── 3 Location) */}
-      <View style={styles.stepperContainer}>
-        {/* Step 1 Pill */}
-        <View style={styles.stepItem}>
-          <View style={[styles.stepCircle, currentStep >= 1 ? styles.stepCircleActive : styles.stepCircleInactive]}>
-            <Text style={[styles.stepNumber, currentStep >= 1 ? styles.stepNumberActive : styles.stepNumberInactive]}>
-              1
-            </Text>
-          </View>
-          <Text style={[styles.stepLabel, currentStep === 1 ? styles.stepLabelActive : styles.stepLabelInactive]}>
-            Details
-          </Text>
-        </View>
-
-        {/* Connecting Line 1-2 */}
-        <View style={[styles.stepLine, currentStep >= 2 ? styles.stepLineActive : styles.stepLineInactive]} />
-
-        {/* Step 2 Pill */}
-        <View style={styles.stepItem}>
-          <View style={[styles.stepCircle, currentStep >= 2 ? styles.stepCircleActive : styles.stepCircleInactive]}>
-            <Text style={[styles.stepNumber, currentStep >= 2 ? styles.stepNumberActive : styles.stepNumberInactive]}>
-              2
-            </Text>
-          </View>
-          <Text style={[styles.stepLabel, currentStep === 2 ? styles.stepLabelActive : styles.stepLabelInactive]}>
-            Photo
-          </Text>
-        </View>
-
-        {/* Connecting Line 2-3 */}
-        <View style={[styles.stepLine, currentStep >= 3 ? styles.stepLineActive : styles.stepLineInactive]} />
-
-        {/* Step 3 Pill */}
-        <View style={styles.stepItem}>
-          <View style={[styles.stepCircle, currentStep >= 3 ? styles.stepCircleActive : styles.stepCircleInactive]}>
-            <Text style={[styles.stepNumber, currentStep >= 3 ? styles.stepNumberActive : styles.stepNumberInactive]}>
-              3
-            </Text>
-          </View>
-          <Text style={[styles.stepLabel, currentStep === 3 ? styles.stepLabelActive : styles.stepLabelInactive]}>
-            Location
-          </Text>
-        </View>
-      </View>
-
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* ==================================================================== */}
-        {/* STEP 1: VIOLATION CATEGORY GRID & PHOTO ATTACHMENT */}
-        {/* ==================================================================== */}
-        {currentStep === 1 && (
-          <View style={styles.stepCard}>
-            {/* 6 Category Cards in a 3x2 Grid (Matching Image 2) */}
-            <View style={styles.categoryGrid}>
-              {VIOLATION_CATEGORIES.map((cat) => {
-                const isSelected = selectedCategory === cat.key;
-                return (
-                  <TouchableOpacity
-                    key={cat.key}
-                    style={[styles.categoryCard, isSelected && styles.categoryCardSelected]}
-                    onPress={() => setSelectedCategory(cat.key)}
-                    activeOpacity={0.85}
-                  >
-                    <View style={[styles.categoryIconCircle, isSelected && styles.categoryIconCircleSelected]}>
-                      {cat.icon(isSelected ? '#E11D48' : '#DC2626')}
-                    </View>
-                    <Text style={[styles.categoryLabel, isSelected && styles.categoryLabelSelected]} numberOfLines={1}>
-                      {cat.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Photo Section Header */}
-            <Text style={styles.sectionHeaderTitle}>Photo</Text>
-
-            {/* Photo Preview & Add Photo Row */}
-            <View style={styles.photoRow}>
-              {/* If photo captured, render thumbnail with red bounding box */}
-              {capturedPhoto && (
-                <View style={styles.photoPreviewWrapper}>
-                  <Image source={{ uri: capturedPhoto }} style={styles.photoPreviewImg} resizeMode="cover" />
-
-                  {/* Red AI Detection Bounding Box Overlay (Matching Image 2) */}
-                  <View style={styles.detectionBoxOverlay} />
-
-                  {/* Remove Button */}
-                  <TouchableOpacity
-                    style={styles.photoRemoveBtn}
-                    onPress={() => setCapturedPhoto(null)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Text style={styles.photoRemoveText}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Dashed "+ Add Photo" Box (Matching Image 2) */}
+            <View style={styles.camTopBar}>
               <TouchableOpacity
-                style={styles.addPhotoDashedBox}
-                onPress={startCameraStream}
+                style={styles.camCloseBtn}
+                onPress={() => {
+                  stopCameraStream();
+                  setIsCameraActive(false);
+                }}
+              >
+                <Text style={styles.camCloseText}>✕ Close</Text>
+              </TouchableOpacity>
+              <View style={styles.camLiveBadge}>
+                <View style={styles.camLiveDot} />
+                <Text style={styles.camLiveText}>POLICE EVIDENCE CAM</Text>
+              </View>
+            </View>
+
+            <View style={styles.viewfinder}>
+              <video
+                ref={(node) => {
+                  videoRef.current = node;
+                  if (node && mediaStreamRef.current) {
+                    node.srcObject = mediaStreamRef.current;
+                    node.muted = true;
+                    node.playsInline = true;
+                    node.play().catch(() => {});
+                  }
+                }}
+                autoPlay
+                playsInline
+                muted
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+
+              <View style={styles.anprBoxOverlay}>
+                <View style={styles.anprCornerTL} />
+                <View style={styles.anprCornerTR} />
+                <View style={styles.anprCornerBL} />
+                <View style={styles.anprCornerBR} />
+                <Text style={styles.anprGuideText}>ALIGN VEHICLE & LICENSE PLATE</Text>
+              </View>
+            </View>
+
+            <View style={styles.camBottomBar}>
+              <TouchableOpacity
+                style={styles.camUploadAltBtn}
+                onPress={() => fileInputRef.current?.click()}
+              >
+                <UploadIcon color="#FFFFFF" size={18} />
+                <Text style={styles.camUploadAltText}>Upload</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.shutterBtn}
+                onPress={handleCaptureSnapshot}
                 activeOpacity={0.8}
               >
-                <CameraIcon color="#475569" size={24} />
-                <Text style={styles.addPhotoText}>
-                  {capturedPhoto ? 'Retake' : 'Add Photo'}
-                </Text>
+                <View style={styles.shutterBtnInner} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.camUploadAltBtn}
+                onPress={() => {
+                  const sampleUrl = 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80';
+                  setCapturedPhoto(sampleUrl);
+                  stopCameraStream();
+                  setIsCameraActive(false);
+                  runOcrOnPhoto(sampleUrl);
+                }}
+              >
+                <CarIcon color="#FFFFFF" size={18} />
+                <Text style={styles.camUploadAltText}>Sample</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Hidden file input for web fallback upload */}
             {Platform.OS === 'web' && (
               <input
                 type="file"
@@ -612,190 +401,414 @@ export const ReportViolationScreen: React.FC<ReportViolationScreenProps> = ({
               />
             )}
           </View>
-        )}
+        </View>
+      </View>
+    );
+  }
 
-        {/* ==================================================================== */}
-        {/* STEP 2: PHOTO & LICENSE PLATE OCR CONFIRMATION */}
-        {/* ==================================================================== */}
-        {currentStep === 2 && (
-          <View style={styles.stepCard}>
-            <Text style={styles.stepTitle}>Confirm Vehicle & License Plate</Text>
-            <Text style={styles.stepSubtitle}>
-              Optical AI automatically detected vehicle registration plate
+  // ============================================================================
+  // SUCCESS CELEBRATION VIEW
+  // ============================================================================
+  if (submittedReport) {
+    return (
+      <View style={styles.outerContainer}>
+        <View style={styles.phoneContainer}>
+          <View style={styles.successCard}>
+            <View style={styles.successIconCircle}>
+              <CheckmarkIcon color="#FFFFFF" size={32} strokeWidth={3} />
+            </View>
+            <Text style={styles.successTitle}>Report Successfully Submitted!</Text>
+            <Text style={styles.successSubtitle}>
+              Dispatched to Puducherry Traffic Police Command Center
             </Text>
 
-            {/* Large Photo Preview Card */}
-            {capturedPhoto && (
-              <View style={styles.largePhotoCard}>
-                <Image source={{ uri: capturedPhoto }} style={styles.largePhoto} resizeMode="cover" />
-                <View style={styles.largeDetectionBox} />
-                <View style={styles.ocrTag}>
-                  <Text style={styles.ocrTagText}>
-                    {isOcrProcessing ? 'Extracting Plate...' : `ANPR AI Match (${ocrConfidence || 92}%)`}
+            <View style={styles.ticketDetailsBox}>
+              <View style={styles.ticketRow}>
+                <Text style={styles.ticketLabel}>Reference ID</Text>
+                <Text style={styles.ticketValue}>{submittedReport.referenceNo}</Text>
+              </View>
+              <View style={styles.ticketRow}>
+                <Text style={styles.ticketLabel}>Vehicle Plate</Text>
+                <Text style={styles.ticketValue}>{submittedReport.vehicleNumber}</Text>
+              </View>
+              <View style={styles.ticketRow}>
+                <Text style={styles.ticketLabel}>Violation Type</Text>
+                <Text style={styles.ticketValue}>
+                  {VIOLATION_CATEGORIES.find((v) => v.key === submittedReport.violationType)?.label ||
+                    'No Parking'}
+                </Text>
+              </View>
+              <View style={styles.ticketRow}>
+                <Text style={styles.ticketLabel}>Location</Text>
+                <Text style={styles.ticketValue} numberOfLines={1}>
+                  {submittedReport.location.landmark}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.karmaBadge}>
+              <PoliceShieldIcon color="#10B981" size={18} />
+              <Text style={styles.karmaText}>+50 Civic Karma Points Awarded</Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.reportAnotherBtn}
+              onPress={handleResetForm}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.reportAnotherBtnText}>Report Another Violation</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // ============================================================================
+  // MAIN MULTI-STEP REPORT WORKFLOW (MATCHING IMAGE 2)
+  // ============================================================================
+  return (
+    <View style={styles.outerContainer}>
+      <View style={styles.phoneContainer}>
+        {/* 1. Clean Native Header with Back Arrow (Matching Image 2) */}
+        <View style={styles.topHeader}>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => {
+              if (currentStep > 1) {
+                setCurrentStep((prev) => (prev - 1) as StepNumber);
+              }
+            }}
+            disabled={currentStep === 1}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.backArrowText, currentStep === 1 && { opacity: 0.25 }]}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Report a Violation</Text>
+          <View style={{ width: 36 }} />
+        </View>
+
+        {/* 2. Compact Stepper (1 Details ── 2 Photo ── 3 Location) */}
+        <View style={styles.stepperContainer}>
+          <View style={styles.stepItem}>
+            <View style={[styles.stepCircle, currentStep >= 1 ? styles.stepCircleActive : styles.stepCircleInactive]}>
+              <Text style={[styles.stepNumber, currentStep >= 1 ? styles.stepNumberActive : styles.stepNumberInactive]}>
+                1
+              </Text>
+            </View>
+            <Text style={[styles.stepLabel, currentStep === 1 ? styles.stepLabelActive : styles.stepLabelInactive]}>
+              Details
+            </Text>
+          </View>
+
+          <View style={[styles.stepLine, currentStep >= 2 ? styles.stepLineActive : styles.stepLineInactive]} />
+
+          <View style={styles.stepItem}>
+            <View style={[styles.stepCircle, currentStep >= 2 ? styles.stepCircleActive : styles.stepCircleInactive]}>
+              <Text style={[styles.stepNumber, currentStep >= 2 ? styles.stepNumberActive : styles.stepNumberInactive]}>
+                2
+              </Text>
+            </View>
+            <Text style={[styles.stepLabel, currentStep === 2 ? styles.stepLabelActive : styles.stepLabelInactive]}>
+              Photo
+            </Text>
+          </View>
+
+          <View style={[styles.stepLine, currentStep >= 3 ? styles.stepLineActive : styles.stepLineInactive]} />
+
+          <View style={styles.stepItem}>
+            <View style={[styles.stepCircle, currentStep >= 3 ? styles.stepCircleActive : styles.stepCircleInactive]}>
+              <Text style={[styles.stepNumber, currentStep >= 3 ? styles.stepNumberActive : styles.stepNumberInactive]}>
+                3
+              </Text>
+            </View>
+            <Text style={[styles.stepLabel, currentStep === 3 ? styles.stepLabelActive : styles.stepLabelInactive]}>
+              Location
+            </Text>
+          </View>
+        </View>
+
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* ==================================================================== */}
+          {/* STEP 1: VIOLATION CATEGORY GRID & PHOTO ATTACHMENT */}
+          {/* ==================================================================== */}
+          {currentStep === 1 && (
+            <View style={styles.stepCard}>
+              {/* 6 Category Cards in a 3x2 Grid (Matching Image 2) */}
+              <View style={styles.categoryGrid}>
+                {VIOLATION_CATEGORIES.map((cat) => {
+                  const isSelected = selectedCategory === cat.key;
+                  return (
+                    <TouchableOpacity
+                      key={cat.key}
+                      style={[styles.categoryCard, isSelected && styles.categoryCardSelected]}
+                      onPress={() => setSelectedCategory(cat.key)}
+                      activeOpacity={0.85}
+                    >
+                      <View style={[styles.categoryIconCircle, isSelected && styles.categoryIconCircleSelected]}>
+                        {cat.icon(isSelected ? '#E11D48' : '#DC2626')}
+                      </View>
+                      <Text style={[styles.categoryLabel, isSelected && styles.categoryLabelSelected]} numberOfLines={2}>
+                        {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Photo Section Header */}
+              <Text style={styles.sectionHeaderTitle}>Photo</Text>
+
+              {/* Photo Preview & Add Photo Row (Matching Image 2) */}
+              <View style={styles.photoRow}>
+                {capturedPhoto && (
+                  <View style={styles.photoPreviewWrapper}>
+                    <Image source={{ uri: capturedPhoto }} style={styles.photoPreviewImg} resizeMode="cover" />
+
+                    {/* Red Detection Bounding Box Overlay */}
+                    <View style={styles.detectionBoxOverlay} />
+
+                    {/* Delete Photo Button */}
+                    <TouchableOpacity
+                      style={styles.photoRemoveBtn}
+                      onPress={() => setCapturedPhoto(null)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Text style={styles.photoRemoveText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Dashed "+ Add Photo" Box (Matching Image 2) */}
+                <TouchableOpacity
+                  style={styles.addPhotoDashedBox}
+                  onPress={startCameraStream}
+                  activeOpacity={0.8}
+                >
+                  <CameraIcon color="#475569" size={24} />
+                  <Text style={styles.addPhotoText}>
+                    {capturedPhoto ? 'Retake' : 'Add Photo'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Hidden file input for web fallback upload */}
+              {Platform.OS === 'web' && (
+                <input
+                  type="file"
+                  ref={fileInputRef as any}
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={handleFileUpload}
+                />
+              )}
+            </View>
+          )}
+
+          {/* ==================================================================== */}
+          {/* STEP 2: PHOTO & LICENSE PLATE OCR CONFIRMATION */}
+          {/* ==================================================================== */}
+          {currentStep === 2 && (
+            <View style={styles.stepCard}>
+              <Text style={styles.stepTitle}>Confirm Vehicle & License Plate</Text>
+              <Text style={styles.stepSubtitle}>
+                Optical AI automatically extracted vehicle registration plate
+              </Text>
+
+              {/* Photo Preview Card */}
+              {capturedPhoto && (
+                <View style={styles.largePhotoCard}>
+                  <Image source={{ uri: capturedPhoto }} style={styles.largePhoto} resizeMode="cover" />
+                  <View style={styles.largeDetectionBox} />
+                  <View style={styles.ocrTag}>
+                    <Text style={styles.ocrTagText}>
+                      {isOcrProcessing ? 'Extracting Plate...' : `ANPR AI Match (${ocrConfidence || 92}%)`}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Extracted License Plate Input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>License Plate Number</Text>
+                <View style={styles.inputBoxWithIcon}>
+                  <TextInput
+                    style={styles.textInputPlate}
+                    value={plateNumber}
+                    onChangeText={(val) => setPlateNumber(val.toUpperCase())}
+                    placeholder="e.g. PY 01 CA 1234"
+                    placeholderTextColor="#94A3B8"
+                    autoCapitalize="characters"
+                  />
+                  <TouchableOpacity
+                    style={styles.retakeMiniBtn}
+                    onPress={startCameraStream}
+                    activeOpacity={0.7}
+                  >
+                    <RefreshIcon color="#1E3A8A" size={14} />
+                    <Text style={styles.retakeMiniText}>Retake</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Vehicle Type Switcher */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Vehicle Category</Text>
+                <View style={styles.vehicleTypeRow}>
+                  <TouchableOpacity
+                    style={[styles.vehicleTypeBtn, vehicleType === '4-Wheeler' && styles.vehicleTypeBtnActive]}
+                    onPress={() => setVehicleType('4-Wheeler')}
+                  >
+                    <CarIcon color={vehicleType === '4-Wheeler' ? '#FFFFFF' : '#1E3A8A'} size={18} />
+                    <Text style={[styles.vehicleTypeText, vehicleType === '4-Wheeler' && styles.vehicleTypeTextActive]}>
+                      4-Wheeler (Car)
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.vehicleTypeBtn, vehicleType === '2-Wheeler' && styles.vehicleTypeBtnActive]}
+                    onPress={() => setVehicleType('2-Wheeler')}
+                  >
+                    <Text style={[styles.vehicleTypeText, vehicleType === '2-Wheeler' && styles.vehicleTypeTextActive]}>
+                      2-Wheeler (Bike)
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* ==================================================================== */}
+          {/* STEP 3: LOCATION & FINAL SUBMISSION */}
+          {/* ==================================================================== */}
+          {currentStep === 3 && (
+            <View style={styles.stepCard}>
+              <Text style={styles.stepTitle}>Incident Location & Review</Text>
+              <Text style={styles.stepSubtitle}>
+                GPS hardware locked to ensure tamper-proof evidence
+              </Text>
+
+              <View style={styles.locationCard}>
+                <View style={styles.locationIconBox}>
+                  <LocationPinIcon color="#DC2626" size={20} />
+                </View>
+                <View style={styles.locationInfoCol}>
+                  <Text style={styles.locationName}>
+                    {currentLoc?.landmark || 'Mission Street, White Town, Puducherry'}
+                  </Text>
+                  <Text style={styles.locationCoords}>
+                    Lat: {currentLoc?.latitude.toFixed(4) || '11.9348'}, Lng: {currentLoc?.longitude.toFixed(4) || '79.8295'} • Verified GPS (5m)
                   </Text>
                 </View>
               </View>
-            )}
 
-            {/* Extracted License Plate Input */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>License Plate Number</Text>
-              <View style={styles.inputBoxWithIcon}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Remarks / Landmark Reference (Optional)</Text>
                 <TextInput
-                  style={styles.textInputPlate}
-                  value={plateNumber}
-                  onChangeText={(val) => setPlateNumber(val.toUpperCase())}
-                  placeholder="e.g. PY 01 CA 1234"
+                  style={styles.remarksInput}
+                  value={remarks}
+                  onChangeText={setRemarks}
+                  placeholder="e.g. Parked blocking hospital gate entrance"
                   placeholderTextColor="#94A3B8"
-                  autoCapitalize="characters"
+                  multiline
+                  numberOfLines={3}
                 />
-                <TouchableOpacity
-                  style={styles.retakeMiniBtn}
-                  onPress={startCameraStream}
-                  activeOpacity={0.7}
-                >
-                  <RefreshIcon color="#1E3A8A" size={14} />
-                  <Text style={styles.retakeMiniText}>Retake</Text>
-                </TouchableOpacity>
               </View>
-            </View>
 
-            {/* Vehicle Type Switcher */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Vehicle Category</Text>
-              <View style={styles.vehicleTypeRow}>
-                <TouchableOpacity
-                  style={[styles.vehicleTypeBtn, vehicleType === '4-Wheeler' && styles.vehicleTypeBtnActive]}
-                  onPress={() => setVehicleType('4-Wheeler')}
-                >
-                  <CarIcon color={vehicleType === '4-Wheeler' ? '#FFFFFF' : '#1E3A8A'} size={18} />
-                  <Text style={[styles.vehicleTypeText, vehicleType === '4-Wheeler' && styles.vehicleTypeTextActive]}>
-                    4-Wheeler (Car / Van)
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.vehicleTypeBtn, vehicleType === '2-Wheeler' && styles.vehicleTypeBtnActive]}
-                  onPress={() => setVehicleType('2-Wheeler')}
-                >
-                  <Text style={[styles.vehicleTypeText, vehicleType === '2-Wheeler' && styles.vehicleTypeTextActive]}>
-                    2-Wheeler (Bike / Scooter)
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* ==================================================================== */}
-        {/* STEP 3: LOCATION & FINAL SUBMISSION */}
-        {/* ==================================================================== */}
-        {currentStep === 3 && (
-          <View style={styles.stepCard}>
-            <Text style={styles.stepTitle}>Incident Location & Review</Text>
-            <Text style={styles.stepSubtitle}>
-              GPS hardware locked to ensure tamper-proof evidence
-            </Text>
-
-            {/* GPS Location Card */}
-            <View style={styles.locationCard}>
-              <View style={styles.locationIconBox}>
-                <LocationPinIcon color="#DC2626" size={20} />
-              </View>
-              <View style={styles.locationInfoCol}>
-                <Text style={styles.locationName}>
-                  {currentLoc?.landmark || 'Mission Street, White Town, Puducherry'}
-                </Text>
-                <Text style={styles.locationCoords}>
-                  Lat: {currentLoc?.latitude.toFixed(4) || '11.9348'}, Lng: {currentLoc?.longitude.toFixed(4) || '79.8295'} • Verified GPS (5m)
+              <View style={styles.policeNoticeCard}>
+                <PoliceShieldIcon color="#1E3A8A" size={20} />
+                <Text style={styles.policeNoticeText}>
+                  Your report will be reviewed by Puducherry Traffic Police for automated e-challan issuance. Earn +50 Civic Karma upon verification.
                 </Text>
               </View>
             </View>
+          )}
 
-            {/* Optional Citizen Remarks */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Remarks / Landmark Reference (Optional)</Text>
-              <TextInput
-                style={styles.remarksInput}
-                value={remarks}
-                onChangeText={setRemarks}
-                placeholder="e.g. Parked blocking hospital gate entrance"
-                placeholderTextColor="#94A3B8"
-                multiline
-                numberOfLines={3}
-              />
-            </View>
+          <View style={{ height: 40 }} />
+        </ScrollView>
 
-            {/* Official Police Notice */}
-            <View style={styles.policeNoticeCard}>
-              <PoliceShieldIcon color="#1E3A8A" size={20} />
-              <Text style={styles.policeNoticeText}>
-                Your report will be reviewed by Puducherry Traffic Police for automated e-challan issuance. Earn +50 Civic Karma upon verification.
-              </Text>
-            </View>
-          </View>
-        )}
+        {/* 3. Bottom Action Dock with Big Blue "Next" Button (Matching Image 2) */}
+        <View style={styles.bottomDock}>
+          {currentStep === 1 && (
+            <TouchableOpacity
+              style={styles.nextBtnPrimary}
+              onPress={handleProceedFromStep1}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.nextBtnPrimaryText}>Next</Text>
+            </TouchableOpacity>
+          )}
 
-        <View style={{ height: 100 }} />
-      </ScrollView>
+          {currentStep === 2 && (
+            <TouchableOpacity
+              style={styles.nextBtnPrimary}
+              onPress={handleProceedFromStep2}
+              disabled={isLocating}
+              activeOpacity={0.88}
+            >
+              {isLocating ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.nextBtnPrimaryText}>Next: Confirm Location</Text>
+              )}
+            </TouchableOpacity>
+          )}
 
-      {/* 3. Bottom Action Dock with Big Blue "Next" Button (Matching Image 2) */}
-      <View style={styles.bottomDock}>
-        {currentStep === 1 && (
-          <TouchableOpacity
-            style={styles.nextBtnPrimary}
-            onPress={handleProceedFromStep1}
-            activeOpacity={0.88}
-          >
-            <Text style={styles.nextBtnPrimaryText}>Next</Text>
-          </TouchableOpacity>
-        )}
-
-        {currentStep === 2 && (
-          <TouchableOpacity
-            style={styles.nextBtnPrimary}
-            onPress={handleProceedFromStep2}
-            disabled={isLocating}
-            activeOpacity={0.88}
-          >
-            {isLocating ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={styles.nextBtnPrimaryText}>Next: Confirm Location</Text>
-            )}
-          </TouchableOpacity>
-        )}
-
-        {currentStep === 3 && (
-          <TouchableOpacity
-            style={[styles.nextBtnPrimary, { backgroundColor: '#10B981' }]}
-            onPress={handleSubmitReport}
-            disabled={isSubmitting}
-            activeOpacity={0.88}
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={styles.nextBtnPrimaryText}>Submit Report to Police</Text>
-            )}
-          </TouchableOpacity>
-        )}
+          {currentStep === 3 && (
+            <TouchableOpacity
+              style={[styles.nextBtnPrimary, { backgroundColor: '#10B981' }]}
+              onPress={handleSubmitReport}
+              disabled={isSubmitting}
+              activeOpacity={0.88}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#FFFFFF" size="small" />
+              ) : (
+                <Text style={styles.nextBtnPrimaryText}>Submit Report to Police</Text>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  outerContainer: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  phoneContainer: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 460,
+    backgroundColor: '#FFFFFF',
+    ...Platform.select({
+      web: {
+        borderLeftWidth: 1,
+        borderRightWidth: 1,
+        borderColor: '#E2E8F0',
+        // @ts-ignore
+        boxShadow: '0 4px 24px rgba(15, 23, 42, 0.08)',
+      },
+      default: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 4,
+      },
+    }),
   },
   topHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'web' ? 16 : 48,
+    paddingTop: Platform.OS === 'web' ? 14 : 44,
     paddingBottom: 12,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
@@ -822,8 +835,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#F1F5F9',
@@ -870,7 +883,7 @@ const styles = StyleSheet.create({
   stepLine: {
     flex: 1,
     height: 2,
-    marginHorizontal: 10,
+    marginHorizontal: 8,
   },
   stepLineActive: {
     backgroundColor: '#2563EB',
@@ -886,35 +899,34 @@ const styles = StyleSheet.create({
   },
   stepCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
   },
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
+    rowGap: 10,
   },
   categoryCard: {
     width: '31%',
-    aspectRatio: 1,
+    minHeight: 96,
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
   },
   categoryCardSelected: {
     borderColor: '#E11D48',
-    backgroundColor: '#FFF1F2',
+    backgroundColor: '#FFF5F5',
   },
   categoryIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FEE2E2',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 6,
@@ -927,6 +939,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#334155',
     textAlign: 'center',
+    lineHeight: 14,
   },
   categoryLabelSelected: {
     color: '#E11D48',
@@ -947,11 +960,12 @@ const styles = StyleSheet.create({
   photoPreviewWrapper: {
     width: 140,
     height: 100,
-    borderRadius: 12,
+    borderRadius: 14,
     overflow: 'hidden',
     position: 'relative',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
+    backgroundColor: '#F1F5F9',
   },
   photoPreviewImg: {
     width: '100%',
@@ -959,10 +973,10 @@ const styles = StyleSheet.create({
   },
   detectionBoxOverlay: {
     position: 'absolute',
-    top: '15%',
-    left: '15%',
-    right: '15%',
-    bottom: '15%',
+    top: '16%',
+    left: '16%',
+    right: '16%',
+    bottom: '16%',
     borderWidth: 2,
     borderColor: '#EF4444',
     borderRadius: 4,
@@ -977,6 +991,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 23, 42, 0.75)',
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 10,
   },
   photoRemoveText: {
     color: '#FFFFFF',
@@ -984,9 +999,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   addPhotoDashedBox: {
-    width: 120,
+    width: 125,
     height: 100,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1.5,
     borderStyle: 'dashed',
     borderColor: '#CBD5E1',
@@ -1008,15 +1023,16 @@ const styles = StyleSheet.create({
   },
   nextBtnPrimary: {
     backgroundColor: '#2563EB',
-    paddingVertical: 14,
+    height: 50,
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   nextBtnPrimaryText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
+    letterSpacing: 0.3,
   },
   stepTitle: {
     fontSize: 16,
@@ -1031,7 +1047,7 @@ const styles = StyleSheet.create({
   },
   largePhotoCard: {
     width: '100%',
-    height: 200,
+    height: 180,
     borderRadius: 14,
     overflow: 'hidden',
     position: 'relative',
@@ -1202,7 +1218,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'web' ? 16 : 48,
+    paddingTop: Platform.OS === 'web' ? 14 : 44,
     paddingBottom: 12,
   },
   camCloseBtn: {
@@ -1412,7 +1428,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563EB',
     paddingVertical: 14,
     paddingHorizontal: 28,
-    borderRadius: 20,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',

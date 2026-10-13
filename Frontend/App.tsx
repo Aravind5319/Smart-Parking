@@ -167,8 +167,8 @@ export default function App() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.policeNavyDark} />
 
-      {/* Global Header (Only shown on non-map screens: report & tickets) */}
-      {activeTab !== 'parking' && (
+      {/* Global Header (Only shown on profile/tickets screens; map and report have custom native headers) */}
+      {activeTab !== 'parking' && activeTab !== 'report' && (
         <Header
           title={getHeaderTitle()}
           subtitle="Puducherry Traffic Police • ParkPuduvai"

@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "owner": "darvin88781",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -15,14 +16,28 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.darvin88781.parkpuduvai",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#0B2559"
-      }
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/icon.png",
       "bundler": "metro"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "b2ce66e5-dffc-4c56-9145-6c691c3301c6"
+      }
     }
   }
 }
