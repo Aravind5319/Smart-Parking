@@ -29,7 +29,9 @@ import {
   RestroomIcon,
   EvIcon,
   ProhibitedIcon,
+  DustbinIcon,
 } from '../common/Icons';
+import { getNearbyAmenitiesForDestination } from '../../services/cityPlacesService';
 
 interface PlaceDetailsModalProps {
   visible: boolean;
@@ -37,6 +39,8 @@ interface PlaceDetailsModalProps {
   onClose: () => void;
   onStartDirections: (place: CityPlace) => void;
   onOpenCam: (place: CityPlace) => void;
+  allPlaces?: CityPlace[];
+  onSelectPlace?: (place: CityPlace) => void;
 }
 
 type TabMode = 'OVERVIEW' | 'PHOTOS' | 'REVIEWS' | 'NEARBY';
@@ -47,8 +51,11 @@ export const PlaceDetailsModal: React.FC<PlaceDetailsModalProps> = ({
   onClose,
   onStartDirections,
   onOpenCam,
+  allPlaces = [],
+  onSelectPlace,
 }) => {
   const [activeTab, setActiveTab] = useState<TabMode>('OVERVIEW');
+
 
   if (!place) return null;
 
@@ -193,18 +200,6 @@ export const PlaceDetailsModal: React.FC<PlaceDetailsModalProps> = ({
                   <Text style={styles.actionBtnSecondaryText}>Live Cam</Text>
                 </TouchableOpacity>
               )}
-
-              {/* Call Button */}
-              <TouchableOpacity style={styles.actionBtnSecondary} onPress={handleCall} activeOpacity={0.85}>
-                <PhoneIcon color="#1E3A8A" size={16} />
-                <Text style={styles.actionBtnSecondaryText}>Call</Text>
-              </TouchableOpacity>
-
-              {/* Share Button */}
-              <TouchableOpacity style={styles.actionBtnSecondary} onPress={handleShare} activeOpacity={0.85}>
-                <ShareIcon color="#1E3A8A" size={16} />
-                <Text style={styles.actionBtnSecondaryText}>Share</Text>
-              </TouchableOpacity>
             </View>
 
             {/* Tabs: Overview, Photos, Reviews, Nearby */}
@@ -222,49 +217,204 @@ export const PlaceDetailsModal: React.FC<PlaceDetailsModalProps> = ({
               ))}
             </View>
 
-            {/* Amenities Section */}
-            <View style={styles.sectionBox}>
-              <Text style={styles.sectionTitle}>Amenities & Features</Text>
-              <View style={styles.amenitiesGrid}>
-                <View style={styles.amenityItem}>
-                  <ClockIcon color="#1E3A8A" size={18} />
-                  <Text style={styles.amenityLabel}>24/7 Access</Text>
+            {/* Tab 1: OVERVIEW */}
+            {activeTab === 'OVERVIEW' && (
+              <>
+                {/* Amenities Section */}
+                <View style={styles.sectionBox}>
+                  <Text style={styles.sectionTitle}>Amenities & Features</Text>
+                  <View style={styles.amenitiesGrid}>
+                    <View style={styles.amenityItem}>
+                      <ClockIcon color="#1E3A8A" size={18} />
+                      <Text style={styles.amenityLabel}>24/7 Access</Text>
+                    </View>
+                    <View style={styles.amenityItem}>
+                      <ShieldLockIcon color="#1E3A8A" size={18} />
+                      <Text style={styles.amenityLabel}>CCTV Monitored</Text>
+                    </View>
+                    <View style={styles.amenityItem}>
+                      <RestroomIcon color="#1E3A8A" size={18} />
+                      <Text style={styles.amenityLabel}>Toilet Nearby</Text>
+                    </View>
+                    <View style={styles.amenityItem}>
+                      <EvIcon color="#10B981" size={18} />
+                      <Text style={styles.amenityLabel}>EV Charging</Text>
+                    </View>
+                  </View>
                 </View>
-                <View style={styles.amenityItem}>
-                  <ShieldLockIcon color="#1E3A8A" size={18} />
-                  <Text style={styles.amenityLabel}>CCTV Monitored</Text>
-                </View>
-                <View style={styles.amenityItem}>
-                  <RestroomIcon color="#1E3A8A" size={18} />
-                  <Text style={styles.amenityLabel}>Toilet Nearby</Text>
-                </View>
-                <View style={styles.amenityItem}>
-                  <EvIcon color="#10B981" size={18} />
-                  <Text style={styles.amenityLabel}>EV Charging</Text>
-                </View>
-              </View>
-            </View>
 
-            {/* Tariff / Rate Info */}
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Tariff / Pricing:</Text>
-              <Text style={styles.infoVal}>{place.tariff || 'FREE'}</Text>
-            </View>
+                {/* Tariff / Rate Info */}
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Tariff / Pricing:</Text>
+                  <Text style={styles.infoVal}>{place.tariff || 'FREE'}</Text>
+                </View>
 
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Hours:</Text>
-              <Text style={styles.infoVal}>{place.openHours || 'Open 24/7'}</Text>
-            </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Hours:</Text>
+                  <Text style={styles.infoVal}>{place.openHours || 'Open 24/7'}</Text>
+                </View>
 
-            {/* Enforcement Notice (if Red Zone) */}
-            {place.enforcementNotice && (
-              <View style={styles.enforcementNoticeBox}>
-                <ProhibitedIcon color="#DC2626" size={18} />
-                <Text style={styles.enforcementNoticeText}>
-                  {place.enforcementNotice}
-                </Text>
+                {/* Enforcement Notice (if Red Zone) */}
+                {place.enforcementNotice && (
+                  <View style={styles.enforcementNoticeBox}>
+                    <ProhibitedIcon color="#DC2626" size={18} />
+                    <Text style={styles.enforcementNoticeText}>
+                      {place.enforcementNotice}
+                    </Text>
+                  </View>
+                )}
+              </>
+            )}
+
+            {/* Tab 2: NEARBY AMENITIES ALONG DESTINATION (Parking, Toilets, Dustbins) */}
+            {activeTab === 'NEARBY' && (
+              <View style={styles.nearbySection}>
+                <Text style={styles.sectionTitle}>Nearby Parkings & Civic Facilities</Text>
+
+                {/* Nearby Parkings */}
+                {getNearbyAmenitiesForDestination(place, allPlaces).parkings.slice(0, 3).map((p) => (
+                  <View key={p.id} style={styles.nearbyItemCard}>
+                    <View style={[styles.nearbyItemIconBox, { backgroundColor: '#DBEAFE' }]}>
+                      <Text style={styles.pMiniText}>P</Text>
+                    </View>
+                    <View style={styles.nearbyItemInfo}>
+                      <Text style={styles.nearbyItemTitle} numberOfLines={1}>{p.name}</Text>
+                      <Text style={styles.nearbyItemSub}>
+                        {p.distanceKm} km away • {p.badgeText || 'Available'}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.nearbyNavBtn}
+                      onPress={() => {
+                        onClose();
+                        onStartDirections(p);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <DirectionsIcon color="#1E3A8A" size={14} />
+                      <Text style={styles.nearbyNavBtnText}>Go</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                {/* Nearby Toilets */}
+                {getNearbyAmenitiesForDestination(place, allPlaces).toilets.slice(0, 2).map((t) => (
+                  <View key={t.id} style={styles.nearbyItemCard}>
+                    <View style={[styles.nearbyItemIconBox, { backgroundColor: '#E0F2FE' }]}>
+                      <RestroomIcon color="#0284C7" size={16} />
+                    </View>
+                    <View style={styles.nearbyItemInfo}>
+                      <Text style={styles.nearbyItemTitle} numberOfLines={1}>{t.name}</Text>
+                      <Text style={styles.nearbyItemSub}>
+                        {t.distanceKm} km away • {t.tariff || '₹5 Paid'}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.nearbyNavBtn}
+                      onPress={() => {
+                        onClose();
+                        onStartDirections(t);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <DirectionsIcon color="#0284C7" size={14} />
+                      <Text style={[styles.nearbyNavBtnText, { color: '#0284C7' }]}>Go</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                {/* Nearby Dustbins */}
+                {getNearbyAmenitiesForDestination(place, allPlaces).dustbins.slice(0, 2).map((d) => (
+                  <View key={d.id} style={styles.nearbyItemCard}>
+                    <View style={[styles.nearbyItemIconBox, { backgroundColor: '#D1FAE5' }]}>
+                      <DustbinIcon color="#059669" size={16} />
+                    </View>
+                    <View style={styles.nearbyItemInfo}>
+                      <Text style={styles.nearbyItemTitle} numberOfLines={1}>{d.name}</Text>
+                      <Text style={styles.nearbyItemSub}>
+                        {d.distanceKm} km away • {d.badgeText || 'Clean Bins'}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.nearbyNavBtn}
+                      onPress={() => {
+                        onClose();
+                        onStartDirections(d);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <DirectionsIcon color="#059669" size={14} />
+                      <Text style={[styles.nearbyNavBtnText, { color: '#059669' }]}>Go</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
               </View>
             )}
+
+            {/* Tab 3: PHOTOS */}
+            {activeTab === 'PHOTOS' && (
+              <View style={styles.photosGrid}>
+                <Image
+                  source={{ uri: place.imageUrl || 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80' }}
+                  style={styles.gridPhoto}
+                  resizeMode="cover"
+                />
+                <Image
+                  source={{ uri: 'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?auto=format&fit=crop&w=800&q=80' }}
+                  style={styles.gridPhoto}
+                  resizeMode="cover"
+                />
+                <Image
+                  source={{ uri: 'https://images.unsplash.com/photo-1590674899484-d5640e854abe?auto=format&fit=crop&w=800&q=80' }}
+                  style={styles.gridPhoto}
+                  resizeMode="cover"
+                />
+              </View>
+            )}
+
+            {/* Tab 4: REVIEWS */}
+            {activeTab === 'REVIEWS' && (
+              <View style={styles.reviewsList}>
+                <View style={styles.reviewCard}>
+                  <View style={styles.reviewUserRow}>
+                    <View style={styles.reviewAvatar}>
+                      <Text style={styles.reviewAvatarText}>S</Text>
+                    </View>
+                    <View style={styles.reviewUserInfo}>
+                      <Text style={styles.reviewerName}>Suresh K.</Text>
+                      <Text style={styles.reviewDate}>2 days ago • Local Guide</Text>
+                    </View>
+                    <View style={styles.reviewRating}>
+                      <StarIcon color="#F59E0B" size={12} />
+                      <Text style={styles.reviewRatingText}>5.0</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.reviewBody}>
+                    Very convenient parking spot right near the Promenade beach. Automated CCTV surveillance and safe shaded slots under trees.
+                  </Text>
+                </View>
+
+                <View style={styles.reviewCard}>
+                  <View style={styles.reviewUserRow}>
+                    <View style={styles.reviewAvatar}>
+                      <Text style={styles.reviewAvatarText}>M</Text>
+                    </View>
+                    <View style={styles.reviewUserInfo}>
+                      <Text style={styles.reviewerName}>Meenakshi R.</Text>
+                      <Text style={styles.reviewDate}>1 week ago</Text>
+                    </View>
+                    <View style={styles.reviewRating}>
+                      <StarIcon color="#F59E0B" size={12} />
+                      <Text style={styles.reviewRatingText}>4.5</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.reviewBody}>
+                    Clean and well-maintained. Paid ₹20 easily via UPI barcode receipt. Traffic police assistance is prompt.
+                  </Text>
+                </View>
+              </View>
+            )}
+
 
             <View style={{ height: 40 }} />
           </ScrollView>
@@ -587,5 +737,128 @@ const styles = StyleSheet.create({
     color: '#991B1B',
     fontWeight: '700',
     lineHeight: 16,
+  },
+  nearbySection: {
+    marginTop: 16,
+  },
+  nearbyItemCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    marginBottom: 10,
+  },
+  nearbyItemIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  pMiniText: {
+    color: '#1E3A8A',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  nearbyItemInfo: {
+    flex: 1,
+  },
+  nearbyItemTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  nearbyItemSub: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  nearbyNavBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  nearbyNavBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#1E3A8A',
+  },
+  photosGrid: {
+    flexDirection: 'column',
+    gap: 12,
+    marginTop: 16,
+  },
+  gridPhoto: {
+    width: '100%',
+    height: 160,
+    borderRadius: 14,
+    backgroundColor: '#E2E8F0',
+  },
+  reviewsList: {
+    marginTop: 16,
+    gap: 12,
+  },
+  reviewCard: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  reviewUserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  reviewAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#1E3A8A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  reviewAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  reviewUserInfo: {
+    flex: 1,
+  },
+  reviewerName: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  reviewDate: {
+    fontSize: 10,
+    color: '#94A3B8',
+  },
+  reviewRating: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  reviewRatingText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  reviewBody: {
+    fontSize: 12,
+    color: '#475569',
+    lineHeight: 18,
   },
 });

@@ -461,7 +461,63 @@ export const PUDUCHERRY_CITY_PLACES: CityPlace[] = [
     statusText: 'Moderate Traffic Flow • Police Warden Directing',
   },
 
-  // 8. POPULAR ATTRACTIONS
+  // 8. CIVIC DUSTBINS & WASTE DISPOSAL HUBS (Clean Puducherry Mission)
+  {
+    id: 'place-dustbin-rock-beach',
+    name: 'Rock Beach Segregated Waste Bins',
+    category: 'DUSTBIN',
+    streetName: 'Goubert Avenue Promenade',
+    area: 'Promenade Waterfront',
+    coordinates: { latitude: 11.9345, longitude: 79.8356 },
+    distanceKm: 0.4,
+    walkingTimeMin: 4,
+    drivingTimeMin: 2,
+    rating: 4.6,
+    reviewCount: 42,
+    badgeText: 'Wet & Dry Waste Bins',
+    tariff: 'FREE Civic Disposal',
+    amenities: ['Segregated Wet / Dry Bins', 'Cleared Hourly by Municipal Sweepers', 'Bottle Crushing Point'],
+    openHours: 'Accessible 24/7',
+    statusText: 'Municipal Clean Spot • 100% Cleared Daily',
+  },
+  {
+    id: 'place-dustbin-french-quarter',
+    name: 'French Quarter Eco Waste Station',
+    category: 'DUSTBIN',
+    streetName: 'Rue Suffren Cross',
+    area: 'White Town Core',
+    coordinates: { latitude: 11.9322, longitude: 79.8339 },
+    distanceKm: 0.5,
+    walkingTimeMin: 5,
+    drivingTimeMin: 2,
+    rating: 4.5,
+    reviewCount: 30,
+    badgeText: 'Eco Stainless Steel Bins',
+    tariff: 'FREE Civic Disposal',
+    amenities: ['Biodegradable & Plastic Bins', 'Zero Litter Zone'],
+    openHours: 'Accessible 24/7',
+    statusText: 'Swachh Puducherry Model Spot',
+  },
+  {
+    id: 'place-dustbin-grand-bazaar',
+    name: 'Grand Bazaar Commercial Waste Hub',
+    category: 'DUSTBIN',
+    streetName: 'Mahatma Gandhi Road / JN Street',
+    area: 'Market Entrance',
+    coordinates: { latitude: 11.9365, longitude: 79.8280 },
+    distanceKm: 0.9,
+    walkingTimeMin: 9,
+    drivingTimeMin: 3,
+    rating: 4.2,
+    reviewCount: 55,
+    badgeText: 'High Capacity Compactors',
+    tariff: 'FREE Civic Disposal',
+    amenities: ['Commercial Grade Bins', 'Frequent Clearance'],
+    openHours: 'Accessible 24/7',
+    statusText: 'Commercial Waste Compactor Station',
+  },
+
+  // 9. POPULAR ATTRACTIONS
   {
     id: 'place-attraction-rock-beach',
     name: 'Rock Beach & Promenade',
@@ -500,8 +556,58 @@ export const PUDUCHERRY_CITY_PLACES: CityPlace[] = [
   },
 ];
 
-// Helper to convert ParkingZone into CityPlace format
-export function parkingZoneToCityPlace(z: ParkingZone): CityPlace {
+// Calculate Haversine distance in kilometers
+export function calculateDistanceKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371; // Earth's radius in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+}
+
+// Calculate travel times based on distance
+export function calculateTravelTimes(distKm: number) {
+  const drivingTimeMin = Math.max(2, Math.round(distKm * 2.8));
+  const walkingTimeMin = Math.max(1, Math.round(distKm * 12.5));
+  return { drivingTimeMin, walkingTimeMin };
+}
+
+// Recalculate dynamic distance & travel times from real GPS user coordinates
+export function enrichPlacesWithUserLocation(
+  placesList: CityPlace[],
+  userLoc: { latitude: number; longitude: number }
+): CityPlace[] {
+  return placesList.map((place) => {
+    const distKm = calculateDistanceKm(
+      userLoc.latitude,
+      userLoc.longitude,
+      place.coordinates.latitude,
+      place.coordinates.longitude
+    );
+    const { drivingTimeMin, walkingTimeMin } = calculateTravelTimes(distKm);
+    return {
+      ...place,
+      distanceKm: distKm,
+      drivingTimeMin,
+      walkingTimeMin,
+    };
+  });
+}
+
+
+// Helper to convert ParkingZone into CityPlace format with dynamic user location
+export function parkingZoneToCityPlace(z: ParkingZone, userLoc?: { latitude: number; longitude: number }): CityPlace {
   const isFree = z.category === 'FREE_CIVIC';
   const total = z.totalSlots || 30;
   const occ = z.occupiedSlots || 10;
@@ -522,6 +628,12 @@ export function parkingZoneToCityPlace(z: ParkingZone): CityPlace {
       ? z.coordinates
       : fallbackCoord;
 
+  const distKm = userLoc
+    ? calculateDistanceKm(userLoc.latitude, userLoc.longitude, validCoords.latitude, validCoords.longitude)
+    : z.distanceKm || 0.5;
+
+  const { drivingTimeMin, walkingTimeMin } = calculateTravelTimes(distKm);
+
   return {
     id: z.id,
     name: z.name,
@@ -529,9 +641,9 @@ export function parkingZoneToCityPlace(z: ParkingZone): CityPlace {
     streetName: z.streetName,
     area: z.area,
     coordinates: validCoords,
-    distanceKm: z.distanceKm || 0.5,
-    walkingTimeMin: z.walkingTimeMin || 5,
-    drivingTimeMin: Math.max(2, Math.round((z.distanceKm || 0.5) * 3)),
+    distanceKm: distKm,
+    walkingTimeMin,
+    drivingTimeMin,
     rating: isFree ? 4.4 : 4.2,
     reviewCount: 150,
     imageUrl: z.imageUrl || 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=800&q=80',
@@ -549,50 +661,182 @@ export function parkingZoneToCityPlace(z: ParkingZone): CityPlace {
   };
 }
 
+// Fetch real road route geometry & maneuvers from OSRM
+export async function fetchRoadRoute(
+  origin: { latitude: number; longitude: number },
+  destination: { latitude: number; longitude: number }
+): Promise<{
+  geometry: [number, number][];
+  distanceKm: number;
+  durationMinutes: number;
+  steps: {
+    instruction: string;
+    distance: string;
+    action: 'LEFT' | 'RIGHT' | 'STRAIGHT' | 'ARRIVE';
+    street: string;
+  }[];
+}> {
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${origin.longitude},${origin.latitude};${destination.longitude},${destination.latitude}?overview=full&geometries=geojson&steps=true`;
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.routes && data.routes.length > 0) {
+        const route = data.routes[0];
+        const distKm = Math.round((route.distance / 1000) * 10) / 10;
+        const durationMin = Math.max(1, Math.round(route.duration / 60));
+
+        // Convert GeoJSON [lon, lat] to Leaflet [lat, lon]
+        const geometry: [number, number][] = route.geometry.coordinates.map(
+          (c: [number, number]) => [c[1], c[0]]
+        );
+
+        const steps: {
+          instruction: string;
+          distance: string;
+          action: 'LEFT' | 'RIGHT' | 'STRAIGHT' | 'ARRIVE';
+          street: string;
+        }[] = [];
+
+        if (route.legs && route.legs[0] && route.legs[0].steps) {
+          route.legs[0].steps.forEach((step: any) => {
+            const maneuverType = (step.maneuver?.modifier || step.maneuver?.type || '').toLowerCase();
+            let action: 'LEFT' | 'RIGHT' | 'STRAIGHT' | 'ARRIVE' = 'STRAIGHT';
+            if (maneuverType.includes('left')) action = 'LEFT';
+            else if (maneuverType.includes('right')) action = 'RIGHT';
+            else if (step.maneuver?.type === 'arrive') action = 'ARRIVE';
+
+            const stepDist =
+              step.distance < 1000
+                ? `${Math.round(step.distance)} m`
+                : `${(step.distance / 1000).toFixed(1)} km`;
+
+            const instruction =
+              step.maneuver?.type === 'arrive'
+                ? `Arrive at destination`
+                : `${step.maneuver?.modifier ? 'Turn ' + step.maneuver.modifier + ' onto ' : 'Continue onto '}${
+                    step.name || 'road'
+                  }`;
+
+            steps.push({
+              instruction,
+              distance: stepDist,
+              action,
+              street: step.name || 'Boulevard Road',
+            });
+          });
+        }
+
+        return {
+          geometry,
+          distanceKm: distKm,
+          durationMinutes: durationMin,
+          steps:
+            steps.length > 0
+              ? steps
+              : [
+                  {
+                    instruction: `Follow road towards destination`,
+                    distance: `${distKm} km`,
+                    action: 'STRAIGHT',
+                    street: 'Main Road',
+                  },
+                  {
+                    instruction: `Arrive at destination`,
+                    distance: 'Destination',
+                    action: 'ARRIVE',
+                    street: 'Destination',
+                  },
+                ],
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('OSRM routing fetch failed, using fallback road path', err);
+  }
+
+  // Fallback
+  const fallbackDist = calculateDistanceKm(
+    origin.latitude,
+    origin.longitude,
+    destination.latitude,
+    destination.longitude
+  );
+  const { drivingTimeMin } = calculateTravelTimes(fallbackDist);
+
+  return {
+    geometry: [
+      [origin.latitude, origin.longitude],
+      [(origin.latitude * 2 + destination.latitude) / 3, (origin.longitude * 2 + destination.longitude) / 3],
+      [(origin.latitude + destination.latitude * 2) / 3, (origin.longitude + destination.longitude * 2) / 3],
+      [destination.latitude, destination.longitude],
+    ],
+    distanceKm: fallbackDist,
+    durationMinutes: drivingTimeMin,
+    steps: [
+      {
+        instruction: `Head towards destination`,
+        distance: `${fallbackDist} km`,
+        action: 'STRAIGHT',
+        street: 'Main Road',
+      },
+      {
+        instruction: `Arrive at destination`,
+        distance: 'Destination',
+        action: 'ARRIVE',
+        street: 'Destination',
+      },
+    ],
+  };
+}
+
 // Generate Turn-by-Turn Navigation Session for Google Maps HUD
 export function createNavigationSession(
   place: CityPlace,
-  origin: { latitude: number; longitude: number } = { latitude: 11.9338, longitude: 79.8310 }
+  origin: { latitude: number; longitude: number } = { latitude: 11.9338, longitude: 79.8310 },
+  roadRoute?: {
+    geometry: [number, number][];
+    distanceKm: number;
+    durationMinutes: number;
+    steps: {
+      instruction: string;
+      distance: string;
+      action: 'LEFT' | 'RIGHT' | 'STRAIGHT' | 'ARRIVE';
+      street: string;
+    }[];
+  }
 ): NavigationSession {
-  const dist = place.distanceKm || 0.6;
-  const driveMin = Math.max(3, Math.round(dist * 3.5));
-  
+  const dist = roadRoute
+    ? roadRoute.distanceKm
+    : calculateDistanceKm(
+        origin.latitude,
+        origin.longitude,
+        place.coordinates.latitude,
+        place.coordinates.longitude
+      ) || place.distanceKm || 0.6;
+  const driveMin = roadRoute ? roadRoute.durationMinutes : Math.max(2, Math.round(dist * 2.8));
+
   const now = new Date();
   now.setMinutes(now.getMinutes() + driveMin);
   const arrivalTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  const steps = [
-    {
-      instruction: `Head East towards ${place.streetName}`,
-      distance: '150 m',
-      action: 'STRAIGHT' as const,
-      street: 'Boulevard Road Cross',
-    },
-    {
-      instruction: `Turn Left onto ${place.streetName}`,
-      distance: '300 m',
-      action: 'LEFT' as const,
-      street: place.streetName,
-    },
-    {
-      instruction: `Continue straight past Heritage French Villa`,
-      distance: '200 m',
-      action: 'STRAIGHT' as const,
-      street: place.streetName,
-    },
-    {
-      instruction: `Turn Right into ${place.name}`,
-      distance: '50 m',
-      action: 'RIGHT' as const,
-      street: `${place.name} Entrance`,
-    },
-    {
-      instruction: `Arrived at ${place.name} on your right`,
-      distance: 'Destination',
-      action: 'ARRIVE' as const,
-      street: place.area,
-    },
-  ];
+  const steps =
+    roadRoute && roadRoute.steps.length > 0
+      ? roadRoute.steps
+      : [
+          {
+            instruction: `Head towards ${place.streetName}`,
+            distance: `${Math.round(dist * 1000)} m`,
+            action: 'STRAIGHT' as const,
+            street: place.streetName,
+          },
+          {
+            instruction: `Arrived at ${place.name} on your right`,
+            distance: 'Destination',
+            action: 'ARRIVE' as const,
+            street: place.area,
+          },
+        ];
 
   return {
     destination: place,
@@ -601,6 +845,47 @@ export function createNavigationSession(
     distanceKm: dist,
     arrivalTime,
     currentStepIndex: 0,
+    geometry: roadRoute?.geometry,
     steps,
   };
+}
+
+// Find nearby parkings, toilets, and dustbins near a destination
+export function getNearbyAmenitiesForDestination(
+  destination: CityPlace,
+  allPlaces: CityPlace[],
+  radiusKm: number = 2.0
+): {
+  parkings: CityPlace[];
+  toilets: CityPlace[];
+  dustbins: CityPlace[];
+} {
+  const parkings: CityPlace[] = [];
+  const toilets: CityPlace[] = [];
+  const dustbins: CityPlace[] = [];
+
+  allPlaces.forEach((p) => {
+    if (p.id === destination.id) return;
+    const d = calculateDistanceKm(
+      destination.coordinates.latitude,
+      destination.coordinates.longitude,
+      p.coordinates.latitude,
+      p.coordinates.longitude
+    );
+    if (d <= radiusKm) {
+      if (p.category === 'PARKING_SMART' || p.category === 'PARKING_FREE') {
+        parkings.push({ ...p, distanceKm: d });
+      } else if (p.category === 'TOILET') {
+        toilets.push({ ...p, distanceKm: d });
+      } else if (p.category === 'DUSTBIN') {
+        dustbins.push({ ...p, distanceKm: d });
+      }
+    }
+  });
+
+  parkings.sort((a, b) => a.distanceKm - b.distanceKm);
+  toilets.sort((a, b) => a.distanceKm - b.distanceKm);
+  dustbins.sort((a, b) => a.distanceKm - b.distanceKm);
+
+  return { parkings, toilets, dustbins };
 }

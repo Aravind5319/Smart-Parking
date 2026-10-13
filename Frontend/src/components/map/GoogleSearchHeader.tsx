@@ -12,12 +12,14 @@ import {
   TouchableOpacity,
   ScrollView,
   Platform,
+  Image,
 } from 'react-native';
 import { PlaceCategory } from '../../types/navigation';
 import {
   SearchIcon,
   MicIcon,
   RestroomIcon,
+  DustbinIcon,
   FuelIcon,
   AtmIcon,
   TrafficLightIcon,
@@ -75,6 +77,12 @@ export const GoogleSearchHeader: React.FC<GoogleSearchHeaderProps> = ({
       color: '#0284C7',
     },
     {
+      key: 'DUSTBIN',
+      label: 'Dustbins',
+      icon: <DustbinIcon color={selectedCategory === 'DUSTBIN' ? '#FFFFFF' : '#059669'} size={15} />,
+      color: '#059669',
+    },
+    {
       key: 'FUEL',
       label: 'Fuel',
       icon: <FuelIcon color={selectedCategory === 'FUEL' ? '#FFFFFF' : '#EA580C'} size={15} />,
@@ -116,9 +124,13 @@ export const GoogleSearchHeader: React.FC<GoogleSearchHeaderProps> = ({
     <View style={styles.floatingContainer} pointerEvents="box-none">
       {/* 1. Google Maps Styled Search Bar */}
       <View style={styles.searchBarCard}>
-        {/* Left Google / Police Shield Emblem */}
+        {/* Left Official Puducherry Police Emblem Logo */}
         <View style={styles.leftEmblem}>
-          <PoliceShieldIcon color="#1E3A8A" size={18} />
+          <Image
+            source={require('../../../assets/police_logo.png')}
+            style={styles.policeLogoImg}
+            resizeMode="contain"
+          />
         </View>
 
         {/* Search Input */}
@@ -248,6 +260,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 6,
+  },
+  policeLogoImg: {
+    width: 26,
+    height: 26,
   },
   input: {
     flex: 1,

@@ -122,6 +122,47 @@ export const EmergencyAssistanceModal: React.FC<EmergencyAssistanceModalProps> =
             </TouchableOpacity>
           </View>
 
+          {/* Live Responders Radar Banner */}
+          <View style={styles.radarCard}>
+            <View style={styles.radarHeaderRow}>
+              <View style={styles.radarLiveBadge}>
+                <View style={styles.blinkingDot} />
+                <Text style={styles.radarLiveText}>LIVE RESPONDER RADAR</Text>
+              </View>
+              <Text style={styles.radarSubtitle}>Puducherry Central Emergency Grid</Text>
+            </View>
+
+            {/* Police PCR-12 */}
+            <View style={styles.responderRow}>
+              <View style={[styles.responderIconBox, { backgroundColor: '#DBEAFE' }]}>
+                <PoliceShieldIcon color="#1E3A8A" size={16} />
+              </View>
+              <View style={styles.responderInfoCol}>
+                <Text style={styles.responderName}>Police PCR-12 Patrol</Text>
+                <Text style={styles.responderSector}>Mission St Sector • Patrolling</Text>
+              </View>
+              <View style={styles.responderDistanceBadge}>
+                <Text style={styles.responderDistKm}>0.4 km</Text>
+                <Text style={styles.responderEta}>~2 min</Text>
+              </View>
+            </View>
+
+            {/* Ambulance AMB-04 */}
+            <View style={styles.responderRow}>
+              <View style={[styles.responderIconBox, { backgroundColor: '#FEE2E2' }]}>
+                <AmbulanceIcon color="#DC2626" size={16} />
+              </View>
+              <View style={styles.responderInfoCol}>
+                <Text style={styles.responderName}>Govt General Hospital 108</Text>
+                <Text style={styles.responderSector}>Rue Victor Simonel • Standby</Text>
+              </View>
+              <View style={styles.responderDistanceBadge}>
+                <Text style={styles.responderDistKm}>0.8 km</Text>
+                <Text style={styles.responderEta}>~4 min</Text>
+              </View>
+            </View>
+          </View>
+
           {/* Share My Live Location Banner */}
           <TouchableOpacity
             style={styles.shareBanner}
@@ -132,8 +173,8 @@ export const EmergencyAssistanceModal: React.FC<EmergencyAssistanceModalProps> =
               <LocationPinIcon color="#DC2626" size={20} />
             </View>
             <View style={styles.shareTextCol}>
-              <Text style={styles.shareTitle}>Share My Live Location</Text>
-              <Text style={styles.shareSub}>Send instant GPS pin to family & emergency services</Text>
+              <Text style={styles.shareTitle}>Broadcast My GPS to Officials</Text>
+              <Text style={styles.shareSub}>Send instant live GPS coordinates to Police PCR & 108</Text>
             </View>
             <ShareIcon color="#1E3A8A" size={18} />
           </TouchableOpacity>
@@ -142,12 +183,12 @@ export const EmergencyAssistanceModal: React.FC<EmergencyAssistanceModalProps> =
           <View style={styles.locationBadgeBox}>
             <Text style={styles.locBadgeTitle}>My Current GPS Fix:</Text>
             <Text style={styles.locBadgeVal}>
-              Goubert Avenue, Puducherry • Lat: {coords.latitude.toFixed(4)}, Lng: {coords.longitude.toFixed(4)}
+              Puducherry • Lat: {coords.latitude.toFixed(4)}, Lng: {coords.longitude.toFixed(4)}
             </Text>
             {copied && (
               <View style={styles.copiedRow}>
                 <CheckmarkIcon color="#10B981" size={12} />
-                <Text style={styles.copiedText}>Coordinates copied to clipboard!</Text>
+                <Text style={styles.copiedText}>Live GPS link copied to clipboard & ready to share!</Text>
               </View>
             )}
           </View>
@@ -254,6 +295,87 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '900',
     marginTop: 2,
+  },
+  radarCard: {
+    backgroundColor: '#0F172A',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  radarHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
+  },
+  radarLiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  blinkingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EF4444',
+  },
+  radarLiveText: {
+    color: '#F87171',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  radarSubtitle: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  responderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E293B',
+  },
+  responderIconBox: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  responderInfoCol: {
+    flex: 1,
+  },
+  responderName: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  responderSector: {
+    color: '#94A3B8',
+    fontSize: 10,
+    marginTop: 1,
+  },
+  responderDistanceBadge: {
+    alignItems: 'flex-end',
+  },
+  responderDistKm: {
+    color: '#38BDF8',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  responderEta: {
+    color: '#10B981',
+    fontSize: 10,
+    fontWeight: '700',
+    marginTop: 1,
   },
   shareBanner: {
     flexDirection: 'row',

@@ -9,6 +9,7 @@ export type PlaceCategory =
   | 'PARKING_FREE'
   | 'NO_PARKING'
   | 'TOILET'
+  | 'DUSTBIN'
   | 'FUEL'
   | 'ATM'
   | 'SIGNAL'
@@ -51,6 +52,7 @@ export interface NavigationSession {
   distanceKm: number;
   arrivalTime: string;
   currentStepIndex: number;
+  geometry?: [number, number][]; // Real road coordinates [lat, lng] from OSRM
   steps: {
     instruction: string;
     distance: string;

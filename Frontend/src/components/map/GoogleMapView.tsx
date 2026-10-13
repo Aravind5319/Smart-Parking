@@ -1,7 +1,7 @@
 // ============================================================================
 // GOOGLE MAPS INTERACTIVE VECTOR & TILE MAP VIEW
-// Uses ESRI World Street Map (Google Maps styled, no API key, zero watermark)
-// Supports live custom pins, ambulance alert path, and turn-by-turn navigation HUD
+// Real Google Maps Roadmap tiles, GPS-first entry, road-snapped routing polyline,
+// sleek aspect markers (Parking, Toilets, Dustbins, Fuel, ATMs), and floating SOS
 // ============================================================================
 
 import React, { useMemo, useRef, useEffect } from 'react';
@@ -15,6 +15,7 @@ interface GoogleMapViewProps {
   userCoords: { latitude: number; longitude: number };
   navigationSession: NavigationSession | null;
   showAmbulanceAlert?: boolean;
+  onOpenSos?: () => void;
 }
 
 export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
@@ -24,6 +25,7 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
   userCoords,
   navigationSession,
   showAmbulanceAlert = true,
+  onOpenSos,
 }) => {
   const iframeRef = useRef<any>(null);
 
@@ -43,7 +45,23 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
     }
   }, [selectedPlace]);
 
-  // Generate self-contained HTML for Leaflet with ESRI World Street Map tiles
+  // Recenter to user's location when userCoords update
+  useEffect(() => {
+    if (userCoords && userCoords.latitude && userCoords.longitude && iframeRef.current) {
+      try {
+        iframeRef.current.contentWindow?.postMessage(
+          {
+            type: 'UPDATE_USER_LOCATION',
+            lat: userCoords.latitude,
+            lng: userCoords.longitude,
+          },
+          '*'
+        );
+      } catch (e) {}
+    }
+  }, [userCoords]);
+
+  // Generate self-contained HTML for Leaflet with Google Maps tiles & real road routing
   const mapHtml = useMemo(() => {
     const placesJson = JSON.stringify(places);
     const navJson = JSON.stringify(navigationSession);
@@ -58,9 +76,8 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body, #map { width: 100%; height: 100%; background: #f2efe9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    html, body, #map { width: 100%; height: 100%; background: #f2efe9; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
     
-    /* Remove Leaflet default div-icon white box */
     .leaflet-div-icon, .custom-pin-wrap {
       background: transparent !important;
       border: none !important;
@@ -74,7 +91,7 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
       background: #1a73e8;
       border: 3.5px solid #ffffff;
       border-radius: 50%;
-      box-shadow: 0 0 0 6px rgba(26, 115, 232, 0.4);
+      box-shadow: 0 0 0 7px rgba(26, 115, 232, 0.4);
       animation: pulseGps 2s infinite;
     }
     @keyframes pulseGps {
@@ -83,47 +100,63 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
       100% { box-shadow: 0 0 0 0 rgba(26, 115, 232, 0); }
     }
 
-    /* Custom SVG Pin Styles */
+    /* Sleek Google Maps Aspect Pin Style */
     .map-pin {
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      justify-content: center;
-      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      gap: 4px;
+      padding: 3px 8px 3px 4px;
+      border-radius: 20px;
+      background: #ffffff;
+      border: 1.5px solid #cbd5e1;
+      box-shadow: 0 3px 10px rgba(15, 23, 42, 0.22);
+      transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
       user-select: none;
+      white-space: nowrap;
     }
     .map-pin:hover {
-      transform: scale(1.15) translateY(-3px);
+      transform: scale(1.12) translateY(-2px);
+      box-shadow: 0 6px 16px rgba(15, 23, 42, 0.3);
       z-index: 9999 !important;
     }
     .pin-active {
-      transform: scale(1.22) translateY(-4px) !important;
+      transform: scale(1.18) translateY(-3px) !important;
+      border-color: #1e3a8a !important;
+      box-shadow: 0 8px 20px rgba(30, 58, 138, 0.4) !important;
       z-index: 10000 !important;
     }
 
-    .pin-badge {
-      display: inline-flex;
+    .pin-icon-circle {
+      width: 20px;
+      height: 20px;
+      border-radius: 10px;
+      display: flex;
       align-items: center;
-      gap: 5px;
-      padding: 5px 10px;
-      border-radius: 18px;
+      justify-content: center;
+      font-size: 11px;
+      color: #fff;
+      font-weight: 900;
+    }
+    .pin-label-text {
       font-size: 11px;
       font-weight: 800;
-      color: #fff;
-      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.35);
-      white-space: nowrap;
-      border: 2px solid #ffffff;
+      color: #0f172a;
+      letter-spacing: -0.2px;
     }
-    .badge-parking-smart { background: #1e3a8a; }
-    .badge-parking-free { background: #059669; }
-    .badge-no-parking { background: #dc2626; }
-    .badge-toilet { background: #0284c7; }
-    .badge-fuel { background: #ea580c; }
-    .badge-atm { background: #16a34a; }
-    .badge-signal { background: #d97706; }
-    .badge-attraction { background: #475569; }
 
-    /* Ambulance Alert Banner Overlay on Map */
+    /* Aspect Colors */
+    .circle-parking-smart { background: #1e3a8a; }
+    .circle-parking-free { background: #059669; }
+    .circle-no-parking { background: #dc2626; }
+    .circle-toilet { background: #0284c7; }
+    .circle-dustbin { background: #10b981; }
+    .circle-fuel { background: #ea580c; }
+    .circle-atm { background: #16a34a; }
+    .circle-signal { background: #d97706; }
+    .circle-attraction { background: #64748b; }
+
+    /* Top Ambulance Alert Banner Overlay on Map */
     .ambulance-banner {
       position: absolute;
       top: 108px;
@@ -175,7 +208,38 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
       box-shadow: 0 0 8px #10b981;
     }
 
-    /* Recenter GPS Floating Button */
+    /* Floating SOS Button (Image 5 Inspiration) */
+    .sos-btn {
+      position: absolute;
+      bottom: 275px;
+      right: 14px;
+      width: 48px;
+      height: 48px;
+      border-radius: 24px;
+      background: #dc2626;
+      color: #ffffff;
+      border: 2px solid #ffffff;
+      box-shadow: 0 4px 16px rgba(220, 38, 38, 0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 1000;
+      font-weight: 900;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      transition: transform 0.15s;
+      animation: sosPulse 2s infinite;
+    }
+    .sos-btn:hover { transform: scale(1.08); }
+    @keyframes sosPulse {
+      0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.6); }
+      70% { box-shadow: 0 0 0 14px rgba(220, 38, 38, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+    }
+
+    /* Recenter GPS Floating Button (Google Maps Style) */
     .recenter-btn {
       position: absolute;
       bottom: 220px;
@@ -191,9 +255,9 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
       justify-content: center;
       cursor: pointer;
       z-index: 1000;
-      transition: background 0.15s;
+      transition: background 0.15s, transform 0.15s;
     }
-    .recenter-btn:hover { background: #f8fafc; }
+    .recenter-btn:hover { background: #f8fafc; transform: scale(1.05); }
 
     .leaflet-control-attribution { display: none !important; }
   </style>
@@ -213,15 +277,16 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
     <span>Rajiv Gandhi Signal • Normal Flow</span>
   </div>
 
-  <!-- Google Maps Bottom-Left Logo -->
-  <div style="position: absolute; bottom: 6px; left: 10px; z-index: 1000; pointer-events: none; opacity: 0.85;">
-    <span style="font-family: 'Product Sans', Roboto, Arial, sans-serif; font-size: 14px; font-weight: 700; color: #5f6368; letter-spacing: -0.3px;">
-      <span style="color: #4285F4">G</span><span style="color: #EA4335">o</span><span style="color: #FBBC05">o</span><span style="color: #4285F4">g</span><span style="color: #34A853">l</span><span style="color: #EA4335">e</span>
-    </span>
+  <!-- Floating SOS Quick Action Button -->
+  <div class="sos-btn" onclick="window.parent.postMessage({type: 'OPEN_EMERGENCY'}, '*')">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2Zm0 15v-4m0-4h.01"/>
+    </svg>
+    <span>SOS</span>
   </div>
 
-  <!-- Recenter GPS Button -->
-  <div class="recenter-btn" onclick="recenterMap()">
+  <!-- Google Maps Recenter GPS Button -->
+  <div class="recenter-btn" onclick="recenterMap()" title="Recenter to My Location">
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="10"/>
       <circle cx="12" cy="12" r="3"/>
@@ -232,44 +297,61 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
     </svg>
   </div>
 
+  <!-- Google Maps Bottom-Left Logo -->
+  <div style="position: absolute; bottom: 6px; left: 10px; z-index: 1000; pointer-events: none; opacity: 0.85;">
+    <span style="font-family: 'Product Sans', Roboto, Arial, sans-serif; font-size: 14px; font-weight: 700; color: #5f6368; letter-spacing: -0.3px;">
+      <span style="color: #4285F4">G</span><span style="color: #EA4335">o</span><span style="color: #FBBC05">o</span><span style="color: #4285F4">g</span><span style="color: #34A853">l</span><span style="color: #EA4335">e</span>
+    </span>
+  </div>
+
   <script>
-    const userLat = ${userCoords.latitude};
-    const userLng = ${userCoords.longitude};
+    let userLat = ${userCoords.latitude};
+    let userLng = ${userCoords.longitude};
     const places = ${placesJson};
     const navSession = ${navJson};
     const selectedPlaceId = "${selectedId}";
 
-    // Central Puducherry Heritage & Smart Parking Boulevard Coordinates
-    const defaultCityCenter = [11.9338, 79.8310];
-    const initialLat = (places && places.length > 0 && places[0].coordinates) ? places[0].coordinates.latitude : 11.9338;
-    const initialLng = (places && places.length > 0 && places[0].coordinates) ? places[0].coordinates.longitude : 79.8310;
-
-    // Initialize Leaflet Map centered on Central Puducherry Smart Parking Zone
+    // Initialize Map directly at User's Live GPS Location
     const map = L.map('map', {
       zoomControl: false,
       attributionControl: false
-    }).setView([initialLat, initialLng], 15);
+    }).setView([userLat, userLng], 15);
 
-    // REAL GOOGLE MAPS TILE ENGINE (Official Roadmap with subdomains)
+    // Official Google Maps Tile Server
     L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
       maxZoom: 20,
       subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
     }).addTo(map);
 
-    // Pulsing User Location Marker
+    // User GPS Dot Marker
     const userIcon = L.divIcon({
       className: 'user-gps-marker',
       iconSize: [22, 22],
       iconAnchor: [11, 11]
     });
-    L.marker([userLat, userLng], { icon: userIcon }).addTo(map);
+    const userMarker = L.marker([userLat, userLng], { icon: userIcon }).addTo(map);
+
+    // Simulated Active Emergency Responder Beacons (Police PCR Van & Ambulance)
+    const policeBeacon = L.marker([11.9360, 79.8290], {
+      icon: L.divIcon({
+        html: '<div style="background:#1e3a8a;color:#fff;font-size:12px;padding:3px 7px;border-radius:10px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-weight:800;white-space:nowrap;">🚓 Police PCR-12 • 3m away</div>',
+        iconAnchor: [50, 15]
+      })
+    }).addTo(map);
+
+    const ambulanceBeacon = L.marker([11.9375, 79.8240], {
+      icon: L.divIcon({
+        html: '<div style="background:#dc2626;color:#fff;font-size:12px;padding:3px 7px;border-radius:10px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-weight:800;white-space:nowrap;">🚑 Ambulance AMB-04 • 1m away</div>',
+        iconAnchor: [50, 15]
+      })
+    }).addTo(map);
 
     // Ambulance Alert Route (Glowing red dashed polyline matching Image 2)
     const ambulanceRoute = [
-      [11.9380, 79.8220], // Rajiv Gandhi Signal
+      [11.9380, 79.8220],
       [11.9365, 79.8260],
       [11.9345, 79.8310],
-      [11.9338, 79.8358]  // Beach Road
+      [11.9338, 79.8358]
     ];
     L.polyline(ambulanceRoute, {
       color: '#dc2626',
@@ -278,7 +360,7 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
       dashArray: '8, 8'
     }).addTo(map);
 
-    // Draw City Place Pins with Robust Error Handling
+    // Draw Sleek City Place Pins
     if (Array.isArray(places)) {
       places.forEach(function(place) {
         try {
@@ -288,52 +370,54 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
           if (isNaN(lat) || isNaN(lng) || lat === 0 || lng === 0) return;
 
           const isSelected = place.id === selectedPlaceId;
-          let badgeClass = 'badge-parking-smart';
-          let iconSymbol = '🅿️';
-          let text = place.vacantSlots !== undefined ? (place.isFull ? 'FULL' : place.vacantSlots + ' / ' + place.totalSlots) : place.name;
+          let circleClass = 'circle-parking-smart';
+          let symbol = 'P';
+          let labelText = place.vacantSlots !== undefined ? (place.isFull ? 'FULL' : place.vacantSlots + ' slots') : place.name;
 
           if (place.category === 'PARKING_FREE') {
-            badgeClass = 'badge-parking-free';
-            iconSymbol = '🅿️ Free';
-            text = place.vacantSlots ? place.vacantSlots + ' bays' : 'Free Kerb';
+            circleClass = 'circle-parking-free';
+            symbol = 'P';
+            labelText = place.vacantSlots ? place.vacantSlots + ' free' : 'Free Kerb';
           } else if (place.category === 'NO_PARKING') {
-            badgeClass = 'badge-no-parking';
-            iconSymbol = '🚫';
-            text = 'No Parking';
+            circleClass = 'circle-no-parking';
+            symbol = '🚫';
+            labelText = 'No Parking';
           } else if (place.category === 'TOILET') {
-            badgeClass = 'badge-toilet';
-            iconSymbol = '🚻';
-            text = place.tariff ? place.tariff.split(' ')[0] + ' Toilet' : 'Toilet';
+            circleClass = 'circle-toilet';
+            symbol = '🚻';
+            labelText = place.tariff ? place.tariff.split(' ')[0] : 'Toilet';
+          } else if (place.category === 'DUSTBIN') {
+            circleClass = 'circle-dustbin';
+            symbol = '🗑️';
+            labelText = 'Dustbin';
           } else if (place.category === 'FUEL') {
-            badgeClass = 'badge-fuel';
-            iconSymbol = '⛽';
-            text = 'Fuel';
+            circleClass = 'circle-fuel';
+            symbol = '⛽';
+            labelText = 'Fuel';
           } else if (place.category === 'ATM') {
-            badgeClass = 'badge-atm';
-            iconSymbol = '🏧';
-            text = 'ATM';
+            circleClass = 'circle-atm';
+            symbol = '₹';
+            labelText = 'ATM';
           } else if (place.category === 'SIGNAL') {
-            badgeClass = 'badge-signal';
-            iconSymbol = '🚥';
-            text = 'Signal';
+            circleClass = 'circle-signal';
+            symbol = '🚥';
+            labelText = 'Signal';
           } else if (place.category === 'ATTRACTION') {
-            badgeClass = 'badge-attraction';
-            iconSymbol = '🌊';
-            text = place.name.split(' ')[0];
+            circleClass = 'circle-attraction';
+            symbol = '⭐';
+            labelText = place.name.split(' ')[0];
           }
 
           const html = '<div class="map-pin ' + (isSelected ? 'pin-active' : '') + '">' +
-            '<div class="pin-badge ' + badgeClass + '">' +
-              '<span>' + iconSymbol + '</span> ' +
-              '<span>' + text + '</span>' +
-            '</div>' +
+            '<div class="pin-icon-circle ' + circleClass + '">' + symbol + '</div>' +
+            '<span class="pin-label-text">' + labelText + '</span>' +
           '</div>';
 
           const customIcon = L.divIcon({
             className: 'custom-pin-wrap',
             html: html,
-            iconSize: [110, 32],
-            iconAnchor: [55, 16]
+            iconSize: [100, 26],
+            iconAnchor: [50, 13]
           });
 
           const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
@@ -342,37 +426,65 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
             window.parent.postMessage({ type: 'SELECT_PLACE', placeId: place.id }, '*');
           });
         } catch(err) {
-          console.warn('Marker skipped', err);
+          console.warn('Marker error', err);
         }
       });
     }
 
-    // Navigation Session Route Polyline (Google Maps vivid blue path)
+    // DRAW REAL ROAD ROUTING PATH (Follows real road network via OSRM, never across houses!)
+    let navPolyline = null;
     if (navSession && navSession.destination && navSession.destination.coordinates) {
-      try {
-        const destLat = parseFloat(navSession.destination.coordinates.latitude);
-        const destLng = parseFloat(navSession.destination.coordinates.longitude);
-        if (!isNaN(destLat) && !isNaN(destLng)) {
-          const navPath = [
-            [userLat, userLng],
-            [userLat + 0.001, userLng + 0.0015],
-            [destLat - 0.0005, destLng - 0.001],
-            [destLat, destLng]
-          ];
+      const destLat = parseFloat(navSession.destination.coordinates.latitude);
+      const destLng = parseFloat(navSession.destination.coordinates.longitude);
 
-          L.polyline(navPath, {
-            color: '#1a73e8',
-            weight: 6,
-            opacity: 0.95
-          }).addTo(map);
-
-          const group = new L.featureGroup([
-            L.marker([userLat, userLng]),
-            L.marker([destLat, destLng])
-          ]);
-          map.fitBounds(group.getBounds(), { padding: [120, 40] });
+      if (!isNaN(destLat) && !isNaN(destLng)) {
+        // If pre-computed road coordinates exist, use them directly
+        if (Array.isArray(navSession.geometry) && navSession.geometry.length > 2) {
+          drawRoadPath(navSession.geometry, destLat, destLng);
+        } else {
+          // Fetch exact road coordinates live from OSRM
+          const osrmUrl = 'https://router.project-osrm.org/route/v1/driving/' + userLng + ',' + userLat + ';' + destLng + ',' + destLat + '?overview=full&geometries=geojson';
+          fetch(osrmUrl)
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+              if (d && d.routes && d.routes.length > 0) {
+                const geom = d.routes[0].geometry.coordinates.map(function(c) {
+                  return [c[1], c[0]];
+                });
+                drawRoadPath(geom, destLat, destLng);
+              } else {
+                drawRoadPath([[userLat, userLng], [destLat, destLng]], destLat, destLng);
+              }
+            })
+            .catch(function() {
+              drawRoadPath([[userLat, userLng], [destLat, destLng]], destLat, destLng);
+            });
         }
-      } catch(e) {}
+      }
+    }
+
+    function drawRoadPath(pts, dLat, dLng) {
+      if (navPolyline) map.removeLayer(navPolyline);
+      navPolyline = L.polyline(pts, {
+        color: '#1a73e8', // Official Google Maps turn navigation blue
+        weight: 6,
+        opacity: 0.95,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(map);
+
+      // Destination Red Teardrop Marker
+      const destIcon = L.divIcon({
+        html: '<div style="background:#ea4335;color:#fff;width:28px;height:28px;border-radius:14px;border:3px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:12px;">🏁</div>',
+        iconAnchor: [14, 14]
+      });
+      L.marker([dLat, dLng], { icon: destIcon }).addTo(map);
+
+      const group = new L.featureGroup([
+        L.marker([userLat, userLng]),
+        L.marker([dLat, dLng])
+      ]);
+      map.fitBounds(group.getBounds(), { padding: [120, 50] });
     }
 
     function recenterMap() {
@@ -384,6 +496,10 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
       if (!e.data) return;
       if (e.data.type === 'PAN_TO' && e.data.lat && e.data.lng) {
         map.flyTo([parseFloat(e.data.lat), parseFloat(e.data.lng)], 16, { animate: true, duration: 0.8 });
+      } else if (e.data.type === 'UPDATE_USER_LOCATION' && e.data.lat && e.data.lng) {
+        userLat = parseFloat(e.data.lat);
+        userLng = parseFloat(e.data.lng);
+        userMarker.setLatLng([userLat, userLng]);
       }
     });
   </script>
@@ -400,6 +516,8 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
       if (data.type === 'SELECT_PLACE' && data.placeId) {
         const found = places.find((p) => p.id === data.placeId);
         if (found) onSelectPlace(found);
+      } else if (data.type === 'OPEN_EMERGENCY') {
+        if (onOpenSos) onOpenSos();
       }
     } catch (err) {}
   };
@@ -409,7 +527,7 @@ export const GoogleMapView: React.FC<GoogleMapViewProps> = ({
       window.addEventListener('message', handleIframeMessage);
       return () => window.removeEventListener('message', handleIframeMessage);
     }
-  }, [places]);
+  }, [places, onOpenSos]);
 
   return (
     <View style={styles.container}>

@@ -20,6 +20,7 @@ import {
   CameraIcon,
   StarIcon,
   RestroomIcon,
+  DustbinIcon,
   FuelIcon,
   AtmIcon,
   TrafficLightIcon,
@@ -59,11 +60,13 @@ export const SwipablePlacesCarousel: React.FC<SwipablePlacesCarouselProps> = ({
         snapToInterval={CARD_WIDTH + 14}
         decelerationRate="fast"
       >
-        {places.map((place) => {
+        {places.map((place, index) => {
           const isSelected = selectedPlaceId === place.id;
           const isNoParking = place.category === 'NO_PARKING';
           const isToilet = place.category === 'TOILET';
+          const isDustbin = place.category === 'DUSTBIN';
           const isFuel = place.category === 'FUEL';
+          const isNearest = index === 0;
 
           return (
             <TouchableOpacity
@@ -94,6 +97,8 @@ export const SwipablePlacesCarousel: React.FC<SwipablePlacesCarouselProps> = ({
                         <ProhibitedIcon color="#DC2626" size={28} />
                       ) : isToilet ? (
                         <RestroomIcon color="#0284C7" size={28} />
+                      ) : isDustbin ? (
+                        <DustbinIcon color="#059669" size={28} />
                       ) : (
                         <FuelIcon color="#EA580C" size={28} />
                       )}
@@ -104,15 +109,21 @@ export const SwipablePlacesCarousel: React.FC<SwipablePlacesCarouselProps> = ({
                   <View
                     style={[
                       styles.photoBadge,
-                      isNoParking
+                      isNearest
+                        ? styles.bgNearest
+                        : isNoParking
                         ? styles.bgRed
-                        : place.category === 'PARKING_FREE'
+                        : place.category === 'PARKING_FREE' || isDustbin
                         ? styles.bgGreen
                         : styles.bgNavy,
                     ]}
                   >
                     <Text style={styles.photoBadgeText}>
-                      {place.isFull ? 'FULL' : place.badgeText}
+                      {isNearest
+                        ? `⭐ NEAREST (${place.distanceKm} km)`
+                        : place.isFull
+                        ? 'FULL'
+                        : place.badgeText}
                     </Text>
                   </View>
                 </View>
@@ -128,6 +139,11 @@ export const SwipablePlacesCarousel: React.FC<SwipablePlacesCarouselProps> = ({
 
                   {/* Rating & Distance */}
                   <View style={styles.metaRow}>
+                    {isNearest && (
+                      <View style={styles.nearestTag}>
+                        <Text style={styles.nearestTagText}>NEAREST</Text>
+                      </View>
+                    )}
                     {typeof place.rating === 'number' && (
                       <View style={styles.ratingBadge}>
                         <StarIcon color="#F59E0B" size={11} />
@@ -136,7 +152,7 @@ export const SwipablePlacesCarousel: React.FC<SwipablePlacesCarouselProps> = ({
                       </View>
                     )}
                     <Text style={styles.distanceText}>
-                      • {place.distanceKm} km ({place.walkingTimeMin} min)
+                      • {place.distanceKm} km ({place.drivingTimeMin || Math.max(2, Math.round(place.distanceKm * 3))} min drive)
                     </Text>
                   </View>
 
@@ -258,6 +274,24 @@ const styles = StyleSheet.create({
   },
   bgRed: {
     backgroundColor: '#DC2626',
+  },
+  bgNearest: {
+    backgroundColor: '#16A34A',
+  },
+  nearestTag: {
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  nearestTagText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#15803D',
+    letterSpacing: 0.5,
   },
   photoBadgeText: {
     color: '#FFFFFF',

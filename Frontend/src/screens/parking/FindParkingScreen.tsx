@@ -12,6 +12,8 @@ import {
   PUDUCHERRY_CITY_PLACES,
   createNavigationSession,
   parkingZoneToCityPlace,
+  fetchRoadRoute,
+  enrichPlacesWithUserLocation,
 } from '../../services/cityPlacesService';
 import { REAL_PUDUCHERRY_ZONES, ParkingZone } from '../../services/parkingService';
 import { AppwriteDb } from '../../services/appwriteDb';
@@ -22,6 +24,7 @@ import { TurnByTurnNavigationHUD } from '../../components/map/TurnByTurnNavigati
 import { PlaceDetailsModal } from '../../components/map/PlaceDetailsModal';
 import { EmergencyAssistanceModal } from '../../components/emergency/EmergencyAssistanceModal';
 import { ParkingCameraModal } from '../../components/parking/ParkingCameraModal';
+import { NoParkingTimerBanner } from '../../components/emergency/NoParkingTimerBanner';
 
 export const FindParkingScreen: React.FC = () => {
   // Places & Filter States
@@ -29,6 +32,7 @@ export const FindParkingScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<CategoryFilterType>('ALL');
   const [selectedPlace, setSelectedPlace] = useState<CityPlace | null>(PUDUCHERRY_CITY_PLACES[0]);
+  const [noParkingDismissed, setNoParkingDismissed] = useState<boolean>(false);
 
   // Modals & Navigation States
   const [detailsModalVisible, setDetailsModalVisible] = useState<boolean>(false);
@@ -48,7 +52,7 @@ export const FindParkingScreen: React.FC = () => {
     AppwriteDb.fetchParkingZones()
       .then((realZones) => {
         if (realZones && realZones.length > 0) {
-          const appwritePlaces = realZones.map(parkingZoneToCityPlace);
+          const appwritePlaces = realZones.map((z) => parkingZoneToCityPlace(z, userCoords));
           // Merge with static toilets, fuel, ATMs
           const nonParking = PUDUCHERRY_CITY_PLACES.filter(
             (p) => p.category !== 'PARKING_SMART' && p.category !== 'PARKING_FREE' && p.category !== 'NO_PARKING'
@@ -73,9 +77,14 @@ export const FindParkingScreen: React.FC = () => {
     })();
   }, []);
 
-  // Filtered Places based on Category Pill and Search Query
+  // Dynamically calculate distance and duration from actual user coordinates
+  const enrichedPlaces = useMemo(() => {
+    return enrichPlacesWithUserLocation(places, userCoords);
+  }, [places, userCoords]);
+
+  // Filtered Places based on Category Pill and Search Query, sorted by distance from user (Nearest first)
   const filteredPlaces = useMemo(() => {
-    return places.filter((place) => {
+    const filtered = enrichedPlaces.filter((place) => {
       // 1. Category Filter
       if (selectedCategory !== 'ALL' && selectedCategory !== 'EMERGENCY') {
         if (place.category !== selectedCategory) return false;
@@ -93,18 +102,38 @@ export const FindParkingScreen: React.FC = () => {
 
       return true;
     });
-  }, [places, selectedCategory, searchQuery]);
 
-  // Start Turn-by-Turn Navigation (Matching Screen 2 of Image 2)
-  const handleStartDirections = (place: CityPlace) => {
-    const session = createNavigationSession(place, userCoords);
-    setNavigationSession(session);
-    setSelectedPlace(place);
+    // Always sort by distance ascending so the closest place is first and gets "⭐ NEAREST" badge
+    return [...filtered].sort((a, b) => a.distanceKm - b.distanceKm);
+  }, [enrichedPlaces, selectedCategory, searchQuery]);
+
+  // Start Real Road Turn-by-Turn Navigation (OSRM street grid geometry)
+  const handleStartDirections = async (place: CityPlace) => {
+    try {
+      const roadRoute = await fetchRoadRoute(userCoords, place.coordinates);
+      const session = createNavigationSession(place, userCoords, roadRoute);
+      setNavigationSession(session);
+      setSelectedPlace(place);
+    } catch (err) {
+      const fallbackSession = createNavigationSession(place, userCoords);
+      setNavigationSession(fallbackSession);
+      setSelectedPlace(place);
+    }
+  };
+
+  // Find nearest legal parking bay when user is warned about No Parking zone
+  const handleNavigateNearestLegalParking = () => {
+    const legalParking = enrichedPlaces.find(
+      (p) => p.category === 'PARKING_SMART' || p.category === 'PARKING_FREE'
+    );
+    if (legalParking) {
+      setNoParkingDismissed(true);
+      handleStartDirections(legalParking);
+    }
   };
 
   // Open Live OpenCV Camera Modal
   const handleOpenCam = (place: CityPlace) => {
-    // Match to corresponding ParkingZone
     const matchedZone = REAL_PUDUCHERRY_ZONES.find((z) => z.id === place.id) || {
       id: place.id,
       name: place.name,
@@ -122,22 +151,38 @@ export const FindParkingScreen: React.FC = () => {
     setCameraModalVisible(true);
   };
 
+  const isNoParkingActive = Boolean(
+    selectedPlace && selectedPlace.category === 'NO_PARKING' && !noParkingDismissed
+  );
+
   return (
     <View style={styles.container}>
-      {/* 1. Full-Screen Google Maps Vector / Tile View */}
+      {/* 1. Full-Screen Google Maps Vector / Tile View with Road Polyline & Floating SOS */}
       <GoogleMapView
         places={filteredPlaces}
         selectedPlace={selectedPlace}
         onSelectPlace={(p) => {
           setSelectedPlace(p);
+          if (p.category === 'NO_PARKING') {
+            setNoParkingDismissed(false);
+          }
           setDetailsModalVisible(true);
         }}
         userCoords={userCoords}
         navigationSession={navigationSession}
         showAmbulanceAlert={true}
+        onOpenSos={() => setEmergencyModalVisible(true)}
       />
 
-      {/* 2. Floating Google Maps Search Bar & Category Pills (Hidden while in Navigation HUD) */}
+      {/* 2. No Parking 5-Minute Warning Countdown Banner (When user stops or views Red Zone) */}
+      <NoParkingTimerBanner
+        visible={isNoParkingActive}
+        zoneName={selectedPlace?.name || 'Restricted Tow-Away Red Zone'}
+        onNavigateNearestParking={handleNavigateNearestLegalParking}
+        onDismiss={() => setNoParkingDismissed(true)}
+      />
+
+      {/* 3. Floating Google Maps Search Bar & Category Pills (Hidden while in Navigation HUD) */}
       {!navigationSession && (
         <GoogleSearchHeader
           searchQuery={searchQuery}
@@ -145,8 +190,12 @@ export const FindParkingScreen: React.FC = () => {
           selectedCategory={selectedCategory}
           onSelectCategory={(cat) => {
             setSelectedCategory(cat);
-            // Auto focus top matching place
-            const match = places.find((p) => cat === 'ALL' || p.category === cat);
+            if (cat === 'EMERGENCY') {
+              setEmergencyModalVisible(true);
+              return;
+            }
+            // Auto focus closest matching place
+            const match = enrichedPlaces.find((p) => cat === 'ALL' || p.category === cat);
             if (match) setSelectedPlace(match);
           }}
           onOpenEmergency={() => setEmergencyModalVisible(true)}
@@ -154,12 +203,17 @@ export const FindParkingScreen: React.FC = () => {
         />
       )}
 
-      {/* 3. Swipable Horizontal Cards Carousel (Hidden while in Navigation HUD) */}
+      {/* 4. Swipable Horizontal Cards Carousel (Hidden while in Navigation HUD) */}
       {!navigationSession && (
         <SwipablePlacesCarousel
           places={filteredPlaces}
           selectedPlaceId={selectedPlace?.id}
-          onSelectPlace={(place) => setSelectedPlace(place)}
+          onSelectPlace={(place) => {
+            setSelectedPlace(place);
+            if (place.category === 'NO_PARKING') {
+              setNoParkingDismissed(false);
+            }
+          }}
           onStartDirections={handleStartDirections}
           onOpenCam={handleOpenCam}
           onOpenDetails={(place) => {
@@ -169,7 +223,7 @@ export const FindParkingScreen: React.FC = () => {
         />
       )}
 
-      {/* 4. Turn-by-Turn Navigation HUD (When user taps Directions) */}
+      {/* 5. Turn-by-Turn Navigation HUD (When user taps Directions) */}
       {navigationSession && (
         <TurnByTurnNavigationHUD
           session={navigationSession}
@@ -177,30 +231,32 @@ export const FindParkingScreen: React.FC = () => {
         />
       )}
 
-      {/* 5. Google Maps Place Details Sheet (Matching Screen 3 of Image 2) */}
+      {/* 6. Google Maps Place Details Sheet with Directions, Live Cam & Nearby Amenities */}
       <PlaceDetailsModal
         visible={detailsModalVisible}
         place={selectedPlace}
         onClose={() => setDetailsModalVisible(false)}
         onStartDirections={handleStartDirections}
         onOpenCam={handleOpenCam}
+        allPlaces={enrichedPlaces}
+        onSelectPlace={(p) => setSelectedPlace(p)}
       />
 
-      {/* 6. Emergency Assistance Modal (Matching Screen 6 of Image 2) */}
+      {/* 7. Emergency Assistance Modal with 108/100 and Live Responder Radar */}
       <EmergencyAssistanceModal
         visible={emergencyModalVisible}
         onClose={() => setEmergencyModalVisible(false)}
         userCoords={userCoords}
       />
 
-      {/* 7. Live OpenCV Camera Modal (Preserves Computer Vision Detection & Cloudflare Tunneling) */}
+      {/* 8. Live OpenCV Camera Modal (Preserves Computer Vision Detection & Cloudflare Tunneling) */}
       <ParkingCameraModal
         visible={cameraModalVisible}
         zone={selectedCamZone}
         onClose={() => setCameraModalVisible(false)}
         onNavigateToBay={(zone) => {
           setCameraModalVisible(false);
-          const p = parkingZoneToCityPlace(zone);
+          const p = parkingZoneToCityPlace(zone, userCoords);
           handleStartDirections(p);
         }}
       />
